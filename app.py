@@ -188,7 +188,7 @@ def handle_message(event):
 
 import os
 
-app.route("/", methods=["GET"])
+@app.route("/", methods=["GET"])
 def index():
     return "Warfy Bot is running!"
 
