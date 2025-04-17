@@ -27,8 +27,7 @@ quick_reply_buttons = QuickReply(
     ]
 )
 
-# Flex Message builder
-
+# Flex Message builder (ตามโค้ด Warfarin ปัจจุบันที่คุณมี)
 def build_schedule_flex(dose_per_week, schedule_list):
     days = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
 
@@ -39,18 +38,17 @@ def build_schedule_flex(dose_per_week, schedule_list):
             return f"{dose} mg (2mg x {tablet_text})"
         elif dose in [1.5, 3, 4.5, 6]:
             tablets = dose / 3
-            tablet_text = "ครึ่งเม็ด" if tablets == 0.5 else f"{tablets:.1f} เม็ด"
+            tablet_text = "ครึ่งเม็ด" if tablets == 0.5 else f"{tablet_text} เม็ด"
             return f"{dose} mg (3mg x {tablet_text})"
         elif dose in [2.5, 5, 7.5, 10]:
             tablets = dose / 5
-            tablet_text = "ครึ่งเม็ด" if tablets == 0.5 else f"{tablets:.1f} เม็ด"
+            tablet_text = "ครึ่งเม็ด" if tablets == 0.5 else f"{tablet_text} เม็ด"
             return f"{dose} mg (5mg x {tablet_text})"
         else:
             return f"{dose} mg"
 
     items = [TextComponent(text=f"{days[i]}: {dose_to_tablet_text(schedule_list[i])}", size="md") for i in range(7)]
 
-    # สรุปการใช้เม็ดยาทั้งสัปดาห์แบบแยกตามเม็ดยา
     summary = {"2mg": 0, "3mg": 0, "5mg": 0}
     for dose in schedule_list:
         if dose in [1, 2, 4]:
@@ -82,44 +80,24 @@ def build_schedule_flex(dose_per_week, schedule_list):
 
     return FlexSendMessage(alt_text="ตารางยา Warfarin", contents=bubble)
 
-# เวอร์ชันใหม่ตามเงื่อนไขเฉพาะเม็ดเดียว/วัน
+# --- เพิ่มปุ่มเลือกวัน
+def ask_for_appointment_date():
+    return TemplateSendMessage(
+        alt_text='กรุณาเลือกวันนัด',
+        template=ButtonsTemplate(
+            title='เลือกวันนัด',
+            text='โปรดเลือกวันนัดจากปฏิทิน',
+            actions=[
+                DatetimePickerAction(
+                    label='เลือกวันที่',
+                    data='action=select_date',
+                    mode='date'
+                )
+            ]
+        )
+    )
 
-def generate_schedule(dose_per_week):
-    tablet_strengths = [2, 3, 5]
-    max_daily_dose = 10
-    schedule = []
-
-    strength_to_doses = {
-        2: [1, 2, 4],
-        3: [1.5, 3, 4.5, 6],
-        5: [2.5, 5, 7.5, 10]
-    }
-
-    # ลองความแรงเดียวครบ 7 วันก่อน
-    for strength, doses in strength_to_doses.items():
-        for dose in doses:
-            if abs(dose * 7 - dose_per_week) < 0.001:
-                return [dose] * 7
-
-    for main_strength, main_doses in strength_to_doses.items():
-        for main_dose in main_doses:
-            for alt_strength, alt_doses in strength_to_doses.items():
-                for alt_dose in alt_doses:
-                    for alt_days in range(0, 3):
-                        main_days = 7 - alt_days
-                        total = main_dose * main_days + alt_dose * alt_days
-
-                        if abs(total - dose_per_week) < 0.001 and main_days >= 5:
-                            daily_doses = [main_dose] * main_days + [alt_dose] * alt_days
-                            if max(daily_doses) / min(daily_doses) <= 2:
-                                dose_counts = [(dose, daily_doses.count(dose)) for dose in set(daily_doses)]
-                                dose_counts.sort(key=lambda x: -x[1])
-                                ordered_doses = []
-                                for dose, count in dose_counts:
-                                    ordered_doses.extend([dose] * count)
-                                return ordered_doses
-    return None
-
+# --- แก้ไข /callback
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
@@ -130,12 +108,12 @@ def callback():
         abort(400)
     return 'OK'
 
+# --- ดักข้อความ Text
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_id = event.source.user_id
     text = event.message.text.strip()
 
-    # โหมดเลือกว่าจะคำนวณแบบไหน
     if text.lower() in ["เริ่ม", "start"]:
         reply = "กรุณาเลือกโหมดที่ต้องการใช้งาน"
         quick_mode = QuickReply(
@@ -150,7 +128,6 @@ def handle_message(event):
         )
         return
 
-    # เริ่มบันทึกโหมดไว้ใน session
     if text == "mode:calc":
         app.config[user_id] = {"mode": "calc"}
         reply = "คุณเลือกโหมด: คำนวณยา\nโปรดระบุขนาดยา Warfarin เช่น 35 หรือ 36.5"
@@ -159,8 +136,8 @@ def handle_message(event):
 
     if text == "mode:calendar":
         app.config[user_id] = {"mode": "calendar", "step": "wait_date"}
-        reply = "คุณเลือกโหมด: ใช้ปฏิทินนัดรับยา\nกรุณาระบุวันที่นัดในรูปแบบ dd/mm/yyyy เช่น 20/06/2025"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+        message = ask_for_appointment_date()
+        line_bot_api.reply_message(event.reply_token, message)
         return
 
     session = app.config.get(user_id, {})
@@ -186,8 +163,17 @@ def handle_message(event):
         TextSendMessage(text=reply, quick_reply=quick_reply_buttons)
     )
 
-import os
+# --- ดัก Postback ที่กดวันที่
+@handler.add(PostbackEvent)
+def handle_postback(event):
+    data = event.postback.data
+    if data.startswith('action=select_date'):
+        selected_date = event.postback.params.get('date')
+        if selected_date:
+            reply = f"📅 คุณเลือกวันที่ {selected_date} แล้วนะครับ"
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
 
+# หน้าเช็ก bot ว่ายังทำงาน
 @app.route("/", methods=["GET"])
 def index():
     return "Warfy Bot is running!"
