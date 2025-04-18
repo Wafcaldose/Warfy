@@ -10,24 +10,37 @@ import os
 
 app = Flask(__name__)
 
-# ตั้งค่าจาก LINE Developer Console
 LINE_CHANNEL_ACCESS_TOKEN = "hJrtsmcBM9LT0m0jEC6h4dbp0ZWek8DwJ77PW7hypvMbGNPnld0vtFiuUpb5dXB0oiKgDAVO6C3duZARQMiLggsUmKew7SA2MoPECS9gDFebh/W0fk6ITXbzgVD3WX6iCdpdPZfaRA54aQXeEU5ezwdB04t89/1O/w1cDnyilFU="
 LINE_CHANNEL_SECRET = "b178fc8ba767114ad57ac6ab93c312ab"
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# ปุ่มลัด (Quick Reply)
 quick_reply_buttons = QuickReply(
     items=[
         QuickReplyButton(action=MessageAction(label="คำแนะนำ", text="คำแนะนำ")),
         QuickReplyButton(action=MessageAction(label="เกี่ยวกับ", text="เกี่ยวกับ")),
-        QuickReplyButton(action=MessageAction(label="ตัวอย่าง", text="35"))
+        QuickReplyButton(action=MessageAction(label="ตัวอย่าง", text="2.5,35"))
     ]
 )
 
-# Flex Message ตาราง Warfarin
-def build_schedule_flex(dose_per_week, schedule_list):
+def calculate_new_dose(inr, old_dose):
+    if inr < 1.5:
+        return old_dose * 1.2
+    elif 1.5 <= inr <= 1.9:
+        return old_dose * 1.1
+    elif 2.0 <= inr <= 3.0:
+        return old_dose
+    elif 3.1 <= inr <= 3.9:
+        return old_dose * 0.9
+    elif 4.0 <= inr <= 4.9:
+        return old_dose * 0.9
+    elif 5.0 <= inr <= 8.9:
+        return old_dose * 0.9
+    else:
+        return old_dose * 0.8
+
+def build_schedule_flex(inr, old_dose, new_dose, schedule_list):
     days = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
 
     def dose_to_tablet_text(dose):
@@ -37,16 +50,22 @@ def build_schedule_flex(dose_per_week, schedule_list):
             return f"{dose} mg (2mg x {tablet_text})"
         elif dose in [1.5, 3, 4.5, 6]:
             tablets = dose / 3
-            tablet_text = "ครึ่งเม็ด" if tablets == 0.5 else f"{tablets:.1f} เม็ด"
+            tablet_text = "ครึ่งเม็ด" if tablets == 0.5 else f"{tablet_text:.1f} เม็ด"
             return f"{dose} mg (3mg x {tablet_text})"
         elif dose in [2.5, 5, 7.5, 10]:
             tablets = dose / 5
-            tablet_text = "ครึ่งเม็ด" if tablets == 0.5 else f"{tablets:.1f} เม็ด"
+            tablet_text = "ครึ่งเม็ด" if tablets == 0.5 else f"{tablet_text:.1f} เม็ด"
             return f"{dose} mg (5mg x {tablet_text})"
         else:
             return f"{dose} mg"
 
-    items = [TextComponent(text=f"{days[i]}: {dose_to_tablet_text(schedule_list[i])}", size="md") for i in range(7)]
+    items = [
+        TextComponent(text=f"INR: {inr}", size="md"),
+        TextComponent(text=f"ขนาดยาเดิม: {old_dose:.1f} mg/wk", size="md"),
+        TextComponent(text=f"ขนาดยาใหม่: {new_dose:.1f} mg/wk", size="md"),
+    ]
+
+    items += [TextComponent(text=f"{days[i]}: {dose_to_tablet_text(schedule_list[i])}", size="md") for i in range(7)]
 
     summary = {"2mg": 0, "3mg": 0, "5mg": 0}
     for dose in schedule_list:
@@ -66,7 +85,7 @@ def build_schedule_flex(dose_per_week, schedule_list):
         body=BoxComponent(
             layout="vertical",
             contents=[
-                TextComponent(text=f"🔳 Warfarin {dose_per_week} mg/สัปดาห์", weight="bold", size="lg"),
+                TextComponent(text="🩺 ผลคำนวณ Warfarin", weight="bold", size="lg"),
                 BoxComponent(
                     layout="vertical",
                     margin="md",
@@ -77,9 +96,8 @@ def build_schedule_flex(dose_per_week, schedule_list):
         )
     )
 
-    return FlexSendMessage(alt_text="ตารางยา Warfarin", contents=bubble)
+    return FlexSendMessage(alt_text="ผลลัพธ์ตารางยา Warfarin", contents=bubble)
 
-# ฟังก์ชันคำนวณตารางยา
 def generate_schedule(dose_per_week):
     strength_to_doses = {
         2: [1, 2, 4],
@@ -111,7 +129,6 @@ def generate_schedule(dose_per_week):
                                 return ordered_doses
     return None
 
-# Endpoint รับ Callback
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
@@ -122,36 +139,52 @@ def callback():
         abort(400)
     return 'OK'
 
-# จัดการข้อความ
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text.strip()
 
-    try:
-        number = float(text)
-        if number > 70:
-            reply = "⚠️ ขนาดยาเกิน 70 mg/สัปดาห์\nโปรดปรึกษาแพทย์ก่อนใช้ยา Warfarin ขนาดสูงกว่านี้เพื่อความปลอดภัย"
-        elif number < 7.0:
-            reply = "⚠️ ขนาดยาที่ต่ำที่สุดที่ระบบรองรับคือ 7 mg/สัปดาห์\n(เช่น 1.0 mg/วัน × 7 วัน)"
+    if "," in text:
+        parts = [x.strip() for x in text.split(",")]
+        if len(parts) == 2:
+            try:
+                inr = float(parts[0])
+                old_dose = float(parts[1])
+                new_dose = calculate_new_dose(inr, old_dose)
+                schedule = generate_schedule(new_dose)
+                if schedule:
+                    flex_msg = build_schedule_flex(inr, old_dose, new_dose, schedule)
+                    line_bot_api.reply_message(event.reply_token, flex_msg)
+                    return
+                else:
+                    reply = "❌ ไม่สามารถจัดยาได้ตามเงื่อนไข"
+            except ValueError:
+                reply = "❌ กรุณาพิมพ์ INR และขนาดยาให้ถูกต้อง เช่น 2.5,35"
         else:
-            schedule = generate_schedule(number)
-            if schedule:
-                flex_msg = build_schedule_flex(number, schedule)
-                line_bot_api.reply_message(event.reply_token, flex_msg)
-                return
+            reply = "❌ กรุณาพิมพ์เฉพาะ 2 ค่า (INR, ขนาดยาเดิม) เช่น 2.5,35"
+    else:
+        try:
+            number = float(text)
+            if number > 70:
+                reply = "⚠️ ขนาดยาเกิน 70 mg/สัปดาห์\nโปรดปรึกษาแพทย์ก่อนใช้ยา Warfarin ขนาดสูงกว่านี้เพื่อความปลอดภัย"
+            elif number < 7.0:
+                reply = "⚠️ ขนาดยาที่ต่ำที่สุดที่ระบบรองรับคือ 7 mg/สัปดาห์\n(เช่น 1.0 mg/วัน × 7 วัน)"
             else:
-                reply = "❌ ไม่สามารถจัดยาได้ตามเงื่อนไข"
-    except:
-        reply = "โปรดพิมพ์เลขขนาดยา Warfarin เช่น 35 หรือ 36.5"
+                schedule = generate_schedule(number)
+                if schedule:
+                    flex_msg = build_schedule_flex("-", number, number, schedule)
+                    line_bot_api.reply_message(event.reply_token, flex_msg)
+                    return
+                else:
+                    reply = "❌ ไม่สามารถจัดยาได้ตามเงื่อนไข"
+        except:
+            reply = "❌ กรุณาพิมพ์เลขขนาดยา เช่น 35 หรือ 36.5"
 
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply, quick_reply=quick_reply_buttons))
 
-# หน้า index
 @app.route("/", methods=["GET"])
 def index():
     return "Warfy Bot is running!"
 
-# รันเซิร์ฟเวอร์
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=True, host="0.0.0.0", port=port)
