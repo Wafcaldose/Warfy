@@ -6,7 +6,6 @@ from linebot.models import (
     QuickReply, QuickReplyButton, MessageAction,
     FlexSendMessage, BubbleContainer, BoxComponent, TextComponent
 )
-
 import os
 
 app = Flask(__name__)
@@ -18,7 +17,7 @@ LINE_CHANNEL_SECRET = "b178fc8ba767114ad57ac6ab93c312ab"
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# Quick Reply ปุ่มลัด
+# ปุ่มลัด (Quick Reply)
 quick_reply_buttons = QuickReply(
     items=[
         QuickReplyButton(action=MessageAction(label="คำแนะนำ", text="คำแนะนำ")),
@@ -27,8 +26,7 @@ quick_reply_buttons = QuickReply(
     ]
 )
 
-# Flex Message builder
-
+# Flex Message ตาราง Warfarin
 def build_schedule_flex(dose_per_week, schedule_list):
     days = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
 
@@ -50,7 +48,6 @@ def build_schedule_flex(dose_per_week, schedule_list):
 
     items = [TextComponent(text=f"{days[i]}: {dose_to_tablet_text(schedule_list[i])}", size="md") for i in range(7)]
 
-    # สรุปการใช้เม็ดยาทั้งสัปดาห์แบบแยกตามเม็ดยา
     summary = {"2mg": 0, "3mg": 0, "5mg": 0}
     for dose in schedule_list:
         if dose in [1, 2, 4]:
@@ -82,20 +79,14 @@ def build_schedule_flex(dose_per_week, schedule_list):
 
     return FlexSendMessage(alt_text="ตารางยา Warfarin", contents=bubble)
 
-# เวอร์ชันใหม่ตามเงื่อนไขเฉพาะเม็ดเดียว/วัน
-
+# ฟังก์ชันคำนวณตารางยา
 def generate_schedule(dose_per_week):
-    tablet_strengths = [2, 3, 5]
-    max_daily_dose = 10
-    schedule = []
-
     strength_to_doses = {
         2: [1, 2, 4],
         3: [1.5, 3, 4.5, 6],
         5: [2.5, 5, 7.5, 10]
     }
 
-    # ลองความแรงเดียวครบ 7 วันก่อน
     for strength, doses in strength_to_doses.items():
         for dose in doses:
             if abs(dose * 7 - dose_per_week) < 0.001:
@@ -120,6 +111,7 @@ def generate_schedule(dose_per_week):
                                 return ordered_doses
     return None
 
+# Endpoint รับ Callback
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
@@ -130,40 +122,11 @@ def callback():
         abort(400)
     return 'OK'
 
+# จัดการข้อความ
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    user_id = event.source.user_id
     text = event.message.text.strip()
 
-    # โหมดเลือกว่าจะคำนวณแบบไหน
-    if text.lower() in ["เริ่ม", "start"]:
-        reply = "กรุณาเลือกโหมดที่ต้องการใช้งาน"
-        quick_mode = QuickReply(
-            items=[
-                QuickReplyButton(action=MessageAction(label="🧲 คำนวณยา", text="mode:calc")),
-                QuickReplyButton(action=MessageAction(label="🗓 ใช้ปฏิทินนัดรับ", text="mode:calendar"))
-            ]
-        )
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=reply, quick_reply=quick_mode)
-        )
-        return
-
-    # เริ่มบันทึกโหมดไว้ใน session
-    if text == "mode:calc":
-        app.config[user_id] = {"mode": "calc"}
-        reply = "คุณเลือกโหมด: คำนวณยา\nโปรดระบุขนาดยา Warfarin เช่น 35 หรือ 36.5"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-        return
-
-    if text == "mode:calendar":
-        app.config[user_id] = {"mode": "calendar", "step": "wait_date"}
-        reply = "คุณเลือกโหมด: ใช้ปฏิทินนัดรับยา\nกรุณาระบุวันที่นัดในรูปแบบ dd/mm/yyyy เช่น 20/06/2025"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-        return
-
-    session = app.config.get(user_id, {})
     try:
         number = float(text)
         if number > 70:
@@ -181,17 +144,14 @@ def handle_message(event):
     except:
         reply = "โปรดพิมพ์เลขขนาดยา Warfarin เช่น 35 หรือ 36.5"
 
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=reply, quick_reply=quick_reply_buttons)
-    )
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply, quick_reply=quick_reply_buttons))
 
-import os
-
+# หน้า index
 @app.route("/", methods=["GET"])
 def index():
     return "Warfy Bot is running!"
 
+# รันเซิร์ฟเวอร์
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=True, host="0.0.0.0", port=port)
