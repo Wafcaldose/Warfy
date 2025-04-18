@@ -63,36 +63,42 @@ def callback():
 def handle_message(event):
     text = event.message.text.strip()
 
-    try:
-        if "," in text:
+    # กรณีพิมพ์ INR,Dose เช่น 1.8,35
+    if "," in text:
+        try:
             inr_text, dose_text = text.split(",")
             inr = float(inr_text.strip())
             current_dose = float(dose_text.strip())
             new_dose, message = adjust_warfarin_dose(inr, current_dose)
             if new_dose:
-                reply = f"INR: {inr}\n\u0e02\u0e19\u0e32\u0e14\u0e22\u0e32\u0e40\u0e14\u0e34\u0e21: {current_dose} mg/week\n\u0e1b\u0e23\u0e31\u0e1a\u0e40\u0e1b\u0e47\u0e19: {new_dose} mg/week ({message})"
+                reply = f"INR: {inr}\nขนาดยาเดิม: {current_dose} mg/week\nขนาดยาใหม่: {new_dose} mg/week\nคำแนะนำ: {message}"
             else:
                 reply = f"INR: {inr}\n{message}"
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-            return
+        except:
+            reply = "⚠️ รูปแบบข้อความผิด โปรดลองใหม่ เช่น 1.8,35"
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+        return
+
+    # กรณีปกติ (พิมพ์ตัวเลขอย่างเดียว เช่น 35)
+    try:
+        number = float(text)
+        if number > 70:
+            reply = "⚠️ ขนาดยาเกิน 70 mg/สัปดาห์\nโปรดปรึกษาแพทย์ก่อนใช้ยา Warfarin ขนาดสูงกว่านี้เพื่อความปลอดภัย"
+        elif number < 7.0:
+            reply = "⚠️ ขนาดยาที่ต่ำที่สุดที่ระบบรองรับคือ 7 mg/สัปดาห์\n(เช่น 1.0 mg/วัน × 7 วัน)"
         else:
-            number = float(text)
-            if number > 70:
-                reply = "\u26a0\ufe0f \u0e02\u0e19\u0e32\u0e14\u0e22\u0e32\u0e40\u0e01\u0e34\u0e19 70 mg/\u0e2a\u0e31\u0e1b\u0e14\u0e32\u0e2b\u0e4c"
-            elif number < 7.0:
-                reply = "\u26a0\ufe0f \u0e02\u0e19\u0e32\u0e14\u0e22\u0e32\u0e15\u0e48\u0e33\u0e17\u0e35\u0e48\u0e23\u0e30\u0e1a\u0e1a\u0e04\u0e37\u0e2d 7 mg/\u0e2a\u0e31\u0e1b\u0e14\u0e32\u0e2b\u0e4c"
+            schedule = generate_schedule(number)
+            if schedule:
+                flex_msg = build_schedule_flex(number, schedule)
+                line_bot_api.reply_message(event.reply_token, flex_msg)
+                return
             else:
-                schedule = generate_schedule(number)
-                if schedule:
-                    flex_msg = build_schedule_flex(number, schedule)
-                    line_bot_api.reply_message(event.reply_token, flex_msg)
-                    return
-                else:
-                    reply = "\u274c \u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e08\u0e31\u0e14\u0e22\u0e32\u0e44\u0e14\u0e49"
+                reply = "❌ ไม่สามารถจัดยาได้ตามเงื่อนไข"
     except:
-        reply = "\u0e42\u0e1b\u0e23\u0e14\u0e1e\u0e34\u0e21\u0e1e\u0e4c\u0e02\u0e19\u0e32\u0e14\u0e22\u0e32 Warfarin \u0e40\u0e0a\u0e48\u0e19 35 \u0e2b\u0e23\u0e37\u0e2d 36.5 หรือ พิมพ์ INR,Dose เช่น 2.5,35"
+        reply = "โปรดพิมพ์ INR,Dose เช่น 1.8,35"
 
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply, quick_reply=quick_reply_buttons))
+
 
 @app.route("/", methods=["GET"])
 def index():
