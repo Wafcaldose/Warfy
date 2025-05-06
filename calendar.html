@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>เลือกวันนัด</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin-top: 50px;
+    }
+    input, button {
+      font-size: 18px;
+      padding: 10px;
+      margin: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>📅 กรุณาเลือกวันนัดหมาย</h2>
+  <input type="date" id="appointmentDate" />
+  <br>
+  <button onclick="submitDate()">ส่งวันนัดเข้า LINE</button>
+
+  <script>
+    async function main() {
+      await liff.init({ liffId: "YOUR_LIFF_ID" });  // ใส่ LIFF ID ของคุณตรงนี้
+    }
+
+    async function submitDate() {
+      const date = document.getElementById("appointmentDate").value;
+      if (!date) {
+        alert("กรุณาเลือกวันที่ก่อน");
+        return;
+      }
+
+      const today = new Date();
+      const selected = new Date(date);
+      const diffTime = selected - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const diffWeeks = Math.ceil(diffDays / 7);
+
+      const message = `🗓️ วันนัด: ${date}\nห่างจากวันนี้ ${diffDays} วัน (${diffWeeks} สัปดาห์)`;
+
+      if (liff.isInClient()) {
+        liff.sendMessages([{ type: "text", text: message }])
+          .then(() => liff.closeWindow())
+          .catch(err => alert("ส่งข้อความไม่สำเร็จ: " + err));
+      } else {
+        alert("ต้องเปิดใน LINE เท่านั้น");
+      }
+    }
+
+    main();
+  </script>
+</body>
+</html>
