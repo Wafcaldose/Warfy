@@ -197,7 +197,7 @@ def handle_message(event):
                 else:
                     reply = "❌ ไม่สามารถจัดยาได้ตามเงื่อนไข"
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-    except:
+    except:Exception as e:
         reply = "โปรดพิมพ์ INR, ขนาดยา เช่น 2.5,35 หรือแค่ขนาดยา 35"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
 
