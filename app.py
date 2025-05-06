@@ -157,13 +157,31 @@ def handle_message(event):
             current_dose = float(dose_text.strip())
             new_dose, message = adjust_warfarin_dose(inr, current_dose)
             schedule = generate_schedule(new_dose)
+
+            summary_text = (
+                f"🔹 INR: {inr}\n"
+                f"🔹 ขนาดยาเดิม: {current_dose} mg/สัปดาห์\n"
+                f"🔹 ขนาดยาใหม่: {new_dose} mg/สัปดาห์\n"
+                f"🔹 การปรับยา: {message}"
+            )
+
             if schedule:
                 flex_msg = build_schedule_flex(new_dose, schedule)
-                line_bot_api.reply_message(event.reply_token, flex_msg)
-            else:
-                reply = f"❌ ปรับขนาดยา {new_dose} mg/สัปดาห์ แต่ไม่สามารถจัดตารางได้"
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-            return
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    [
+                        TextSendMessage(text=summary_text),
+                        flex_msg
+                    ]
+             )
+    else:
+        reply = (
+            f"{summary_text}\n\n"
+            f"❌ ไม่สามารถจัดตารางการใช้ยา {new_dose} mg/สัปดาห์ ได้"
+        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+    return
+
         else:
             number = float(text)
             if number > 70:
