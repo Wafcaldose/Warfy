@@ -49,7 +49,7 @@ def adjust_warfarin_dose(inr, current_dose):
 
 # ฟังก์ชันสร้าง Flex ตาราง
 
-def build_schedule_flex(dose_per_week, schedule_list):
+def build_schedule_flex(dose_per_week, schedule_list, inr=None, previous_dose=None, adjustment_message=None):
     days = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
 
     def dose_to_tablet_text(dose):
@@ -70,6 +70,13 @@ def build_schedule_flex(dose_per_week, schedule_list):
 
     items = [TextComponent(text=f"{days[i]}: {dose_to_tablet_text(schedule_list[i])}", size="md") for i in range(7)]
 
+    if inr is not None and previous_dose is not None and adjustment_message is not None:
+        items.extend([
+            TextComponent(text=f"🔹 INR: {inr}", size="sm"),
+            TextComponent(text=f"🔹 ขนาดเดิม: {previous_dose} mg/สัปดาห์", size="sm"),
+            TextComponent(text=f"🔹 ขนาดใหม่: {dose_per_week} mg/สัปดาห์", size="sm"),
+            TextComponent(text=f"🔹 การปรับยา: {adjustment_message}", size="sm", wrap=True, margin="md")
+        ])
     summary = {"2mg": 0, "3mg": 0, "5mg": 0}
     for dose in schedule_list:
         if dose in [1, 2, 4]:
@@ -158,7 +165,7 @@ def handle_message(event):
             new_dose, message = adjust_warfarin_dose(inr, current_dose)
             schedule = generate_schedule(new_dose)
             if schedule:
-                flex_msg = build_schedule_flex(new_dose, schedule)
+                flex_msg = build_schedule_flex(new_dose, schedule, inr, current_dose, message)
                 line_bot_api.reply_message(event.reply_token, flex_msg)
             else:
                 reply = f"❌ ปรับขนาดยา {new_dose} mg/สัปดาห์ แต่ไม่สามารถจัดตารางได้"
