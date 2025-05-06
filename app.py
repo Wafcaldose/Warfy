@@ -68,7 +68,6 @@ def build_schedule_flex(dose_per_week, schedule_list, inr=None, previous_dose=No
         else:
             return f"{dose} mg"
 
-    items = [TextComponent(text=f"{days[i]}: {dose_to_tablet_text(schedule_list[i])}", size="md") for i in range(7)]
 
     if inr is not None and previous_dose is not None and adjustment_message is not None:
         items.extend([
@@ -77,6 +76,9 @@ def build_schedule_flex(dose_per_week, schedule_list, inr=None, previous_dose=No
             TextComponent(text=f"🔹 ขนาดใหม่: {dose_per_week} mg/สัปดาห์", size="sm"),
             TextComponent(text=f"🔹 การปรับยา: {adjustment_message}", size="sm", wrap=True, margin="md")
         ])
+
+    items = [TextComponent(text=f"{days[i]}: {dose_to_tablet_text(schedule_list[i])}", size="md") for i in range(7)]
+    
     summary = {"2mg": 0, "3mg": 0, "5mg": 0}
     for dose in schedule_list:
         if dose in [1, 2, 4]:
