@@ -35,10 +35,10 @@ def adjust_warfarin_dose(inr, current_dose):
         message = "งดยา 1 วัน และลดขนาดยา 10%"
     elif 5.0 <= inr <= 8.9:
         new_dose = current_dose * 0.8
-        message = "งดยา 1-2 วัน และให้ Vitamin K1 1mg และลดขนาดยา 20%"
+        message = "งดยา 1-2 วัน และให้ Vitamin K1 1 mg และลดขนาดยา 20%"
     elif inr >= 9.0:
         new_dose = current_dose * 0.7
-        message = "หยุดยาและให้ Vitamin K1 5-10mg"
+        message = "หยุดยาและให้ Vitamin K1 5-10 mg"
     else:
         new_dose = current_dose
         message = "กรุณาปรึกษาแพทย์"
