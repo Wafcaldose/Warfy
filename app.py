@@ -158,7 +158,7 @@ def handle_message(event):
             new_dose, message = adjust_warfarin_dose(inr, current_dose)
             schedule = generate_schedule(new_dose)
             if schedule:
-                flex_msg = build_schedule_flex(new_dose, schedule, inr, current_dose, message)
+                flex_msg = build_schedule_flex(new_dose, schedule)
                 line_bot_api.reply_message(event.reply_token, flex_msg)
             else:
                 reply = f"❌ ปรับขนาดยา {new_dose} mg/สัปดาห์ แต่ไม่สามารถจัดตารางได้"
