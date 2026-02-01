@@ -20,8 +20,6 @@ app = Flask(__name__)
 # ==========================================
 LINE_CHANNEL_ACCESS_TOKEN = "hJrtsmcBM9LT0m0jEC6h4dbp0ZWek8DwJ77PW7hypvMbGNPnld0vtFiuUpb5dXB0oiKgDAVO6C3duZARQMiLggsUmKew7SA2MoPECS9gDFebh/W0fk6ITXbzgVD3WX6iCdpdPZfaRA54aQXeEU5ezwdB04t89/1O/w1cDnyilFU="
 LINE_CHANNEL_SECRET = "b178fc8ba767114ad57ac6ab93c312ab"
-
-# 🔴 ใส่ LIFF ID
 LIFF_ID = "2009026200-reXDdCkf"
 
 # 🖼️ ลิงก์รูปภาพและ PDF
@@ -127,7 +125,7 @@ def liff_pill_selector():
     return render_template_string(LIFF_HTML, liff_id=LIFF_ID)
 
 # ==========================================
-# 📐 Logic คำนวณ (ปรับปรุง)
+# 📐 Logic คำนวณ
 # ==========================================
 def get_dose_adjustment_range(inr, current_dose):
     if inr is None:
@@ -185,16 +183,12 @@ def find_best_schedule_in_range(min_weekly, max_weekly, available_tabs):
                 count_c = 7 - count_a - count_b
                 weekly_sum = (dose_a * count_a) + (dose_b * count_b) + (dose_c * count_c)
                 if min_weekly <= weekly_sum <= max_weekly:
-                    # คำนวณ active_days (วันที่กินยาจริง)
-                    # Priority 1: พยายามกินยาทุกวัน (Active = 7)
                     active_days = 0
                     if dose_a > 0: active_days += count_a
                     if dose_b > 0: active_days += count_b
                     if dose_c > 0: active_days += count_c
-                    
-                    if active_days >= 5: # กรองเอาเฉพาะสูตรที่กินอย่างน้อย 5 วัน
+                    if active_days >= 5:
                         schedule_list = [dose_a]*count_a + [dose_b]*count_b + [dose_c]*count_c
-                        # กรองเพิ่มเติม: ความต่างของยาต้องไม่โดดเกินไป
                         final_active_doses = [d for d in schedule_list if d > 0]
                         if final_active_doses and (max(final_active_doses) - min(final_active_doses)) > 2.0: continue
 
@@ -214,19 +208,11 @@ def find_best_schedule_in_range(min_weekly, max_weekly, available_tabs):
 
     if not candidates: return None, 0, {}
     
-    # Sort Candidates:
-    # 1. Active Days มากที่สุด (กินยาทุกวัน = ดีที่สุด)
-    # 2. ผลรวมใกล้เคียงเป้าหมาย (Error น้อย)
-    # 3. ความหลากหลายของเม็ดยาน้อย (Simple)
     target_mid = (min_weekly + max_weekly) / 2
     candidates.sort(key=lambda x: (-x['active_days'], abs(x['sum'] - target_mid), x['unique_count']))
     
     best_candidate = candidates[0]
     best_plan = best_candidate['schedule']
-    
-    # ✅ ปรับปรุง: เรียงลำดับจาก มาก -> น้อย (ทำให้ 0 หรือวันหยุด ไปอยู่ท้ายสุดเสมอ)
-    best_plan.sort(reverse=True)
-    
     return best_plan, best_candidate['sum'], best_candidate['pill_summary']
 
 # ==========================================
@@ -238,7 +224,6 @@ def build_strict_schedule_flex(final_dose, schedule_list, available_tabs, pill_s
     items = []
     header_color = "#FF3333" if "งด" in adjustment_message else "#00B900"
 
-    # Info Box
     info_box = [TextComponent(text=f"🔹 ขนาดยาเดิม: {previous_dose} mg/สัปดาห์", size="sm", color="#555555")]
     if inr is not None:
         info_box.insert(0, TextComponent(text=f"🔹 INR: {inr}", size="sm", color="#555555"))
@@ -250,7 +235,6 @@ def build_strict_schedule_flex(final_dose, schedule_list, available_tabs, pill_s
     items.extend(info_box)
     items.append(TextComponent(text="-----------------", align="center", color="#cccccc"))
 
-    # Table
     for i in range(7):
         dose = schedule_list[i]
         if dose == 0:
@@ -270,13 +254,11 @@ def build_strict_schedule_flex(final_dose, schedule_list, available_tabs, pill_s
             paddingAll="xs", cornerRadius="sm", margin="xs"
         ))
 
-    # Summary
     summary_lines = [f"• ยา {k} mg: รวม {v} เม็ด/สัปดาห์" for k, v in sorted(pill_summary.items())]
     items.append(TextComponent(text="-----------------", align="center", color="#cccccc", margin="md"))
     items.append(TextComponent(text="สรุปจำนวนยาต่อสัปดาห์", weight="bold", size="sm", margin="md"))
     items.append(TextComponent(text="\n".join(summary_lines) if summary_lines else "หยุดยาทั้งสัปดาห์", wrap=True, size="sm", color="#666666", margin="sm"))
     
-    # Calendar Button
     items.append(TextComponent(text="-----------------", align="center", color="#cccccc", margin="md"))
     items.append(TextComponent(text="ต้องการคำนวณจำนวนเม็ดทั้งหมด?", size="xs", color="#aaaaaa", align="center", margin="sm"))
     items.append(BoxComponent(
@@ -288,7 +270,6 @@ def build_strict_schedule_flex(final_dose, schedule_list, available_tabs, pill_s
         }]
     ))
 
-    # Reference Image/PDF (Hide if no INR)
     if inr is not None:
         items.append(TextComponent(text="-----------------", align="center", color="#cccccc", margin="md"))
         if TABLE_IMAGE_URL:
@@ -424,11 +405,15 @@ def handle_message(event):
                 schedule, final, summary = find_best_schedule_in_range(min_t, max_t, session['available_tabs'])
                 
                 if schedule:
-                    # ✅ ปรับปรุง: เรียงยาอีกรอบหลังจากใส่ 0 (Skip) เพื่อให้ 0 ไปอยู่ท้ายสุดเสมอ
+                    # ✅ จัดการ 0 (Skip Days)
                     if skip: 
                         for i in range(min(skip, 7)): schedule[i] = 0
                     
-                    schedule.sort(reverse=True) # Ensure descending order
+                    # ✅ Logic ใหม่: เรียงยาที่กินจาก น้อย->มาก แล้วเอา 0 ไปไว้หลังสุด
+                    # แยก 0 ออกมา
+                    non_zeros = sorted([x for x in schedule if x > 0]) # เรียงน้อยไปมาก (2,2,4,4)
+                    zeros = [x for x in schedule if x == 0] # เก็บ 0 ไว้ (0)
+                    schedule = non_zeros + zeros # เอามาต่อกัน (2,2,4,4,0)
 
                     session['timestamp'] = datetime.now()
                     session['pill_summary'] = summary
