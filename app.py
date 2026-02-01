@@ -184,15 +184,14 @@ def build_strict_schedule_flex(final_dose, schedule_list, available_tabs, pill_s
 
     items.append(TextComponent(text="-----------------", align="center", color="#cccccc", margin="md"))
     
-    # ✅ ส่วนแสดงรูปภาพ (Show Image -> Click -> Open PDF)
     if TABLE_IMAGE_URL:
         items.append(ImageComponent(
-            url=TABLE_IMAGE_URL,        # ตาเห็นรูปนี้
+            url=TABLE_IMAGE_URL,
             size="full", 
             aspectRatio="1.6:1", 
             aspectMode="cover", 
             margin="md", 
-            action=URIAction(uri=TABLE_PDF_URL)  # ✅ นิ้วกดแล้วไปลิงก์ PDF นี้
+            action=URIAction(uri=TABLE_PDF_URL)
         ))
         
     items.append(TextComponent(text="อ้างอิงจากแนวทางการรักษาผู้ป่วยด้วยยาต้านการแข็งตัวของเลือดชนิดรับประทาน สมาคมแพทย์โรคหัวใจแห่งประเทศไทย ในพระบรมราชูปถัมภ์", wrap=True, size="xxs", color="#aaaaaa", margin="sm", align="center"))
@@ -203,7 +202,7 @@ def build_strict_schedule_flex(final_dose, schedule_list, available_tabs, pill_s
     )
     return FlexSendMessage(alt_text="ตารางยา Warfarin", contents=bubble)
 
-# --- Flex Message: เช็กยาตีกัน (UpToDate Full Data) ---
+# --- Flex Message: เช็กยาตีกัน (UpToDate: No Management, Pure Effect) ---
 def build_drug_interaction_carousel():
     bubbles = []
     
@@ -214,13 +213,14 @@ def build_drug_interaction_carousel():
             TextComponent(text="Antibiotics / Antifungals", color="#FFCDD2", size="xs")
         ]),
         body=BoxComponent(layout="vertical", contents=[
-            TextComponent(text="💊 รายการยา (UpToDate):", weight="bold", size="sm", color="#D32F2F"),
+            TextComponent(text="💊 รายการยา:", weight="bold", size="sm", color="#D32F2F"),
             TextComponent(text="• Metronidazole (Flagyl)\n• TMP-SMX (Bactrim)\n• Ciprofloxacin / Levofloxacin\n• Azithromycin / Clarithromycin\n• Fluconazole / Voriconazole\n• Miconazole (Oral Gel)", wrap=True, size="xs", color="#333333", margin="sm"),
             
             BoxComponent(layout="vertical", margin="md", backgroundColor="#eeeeee", height="1px"),
             
-            TextComponent(text="📉 Management:", weight="bold", size="sm", margin="md"),
-            TextComponent(text="• Metro/Bactrim: ลด Warfarin 25-40%\n• Fluconazole: ลด Warfarin 30%\n• Monitor INR ใน 3-5 วัน", wrap=True, size="xs", color="#555555", margin="xs")
+            TextComponent(text="⚡ ผลกระทบ (Effect):", weight="bold", size="sm", margin="md"),
+            TextComponent(text="Potentiate Warfarin Effect", size="xs", color="#555555", weight="bold"),
+            TextComponent(text="• ทำให้ฤทธิ์ยา Warfarin เพิ่มขึ้น\n• ส่งผลให้ค่า INR สูงขึ้น", wrap=True, size="xs", color="#555555", margin="xs")
         ])
     ))
 
@@ -231,13 +231,14 @@ def build_drug_interaction_carousel():
             TextComponent(text="Cardiac / CNS / GI / Cancer", color="#FFCDD2", size="xs")
         ]),
         body=BoxComponent(layout="vertical", contents=[
-            TextComponent(text="💊 รายการยา (UpToDate):", weight="bold", size="sm", color="#C62828"),
+            TextComponent(text="💊 รายการยา:", weight="bold", size="sm", color="#C62828"),
             TextComponent(text="• Amiodarone / Propafenone\n• Acetaminophen (Paracetamol)\n• Statins (Rosu/Fluvastatin)\n• Fenofibrate / Gemfibrozil\n• Omeprazole / Cimetidine\n• Allopurinol / Tramadol\n• Capecitabine / Fluorouracil", wrap=True, size="xs", color="#333333", margin="sm"),
             
             BoxComponent(layout="vertical", margin="md", backgroundColor="#eeeeee", height="1px"),
             
-            TextComponent(text="📉 Management:", weight="bold", size="sm", margin="md"),
-            TextComponent(text="• Amiodarone: ลด Warfarin 30-50%\n• Capecitabine: ความเสี่ยงสูงมาก ต้อง Monitor ใกล้ชิด", wrap=True, size="xs", color="#555555", margin="xs")
+            TextComponent(text="⚡ ผลกระทบ (Effect):", weight="bold", size="sm", margin="md"),
+            TextComponent(text="Potentiate Warfarin Effect", size="xs", color="#555555", weight="bold"),
+            TextComponent(text="• ทำให้ฤทธิ์ยา Warfarin เพิ่มขึ้น\n• ส่งผลให้ค่า INR สูงขึ้น", wrap=True, size="xs", color="#555555", margin="xs")
         ])
     ))
 
@@ -248,13 +249,14 @@ def build_drug_interaction_carousel():
             TextComponent(text="Enzyme Inducers", color="#FFE0B2", size="xs")
         ]),
         body=BoxComponent(layout="vertical", contents=[
-            TextComponent(text="💊 รายการยา (UpToDate):", weight="bold", size="sm", color="#F57C00"),
+            TextComponent(text="💊 รายการยา:", weight="bold", size="sm", color="#F57C00"),
             TextComponent(text="• Rifampin (Rifampicin)\n• Carbamazepine / Phenytoin\n• Phenobarbital\n• Cholestyramine\n• Sucralfate\n• St. John's wort\n• Dicloxacillin / Nafcillin", wrap=True, size="xs", color="#333333", margin="sm"),
             
             BoxComponent(layout="vertical", margin="md", backgroundColor="#eeeeee", height="1px"),
             
-            TextComponent(text="📈 Management:", weight="bold", size="sm", margin="md"),
-            TextComponent(text="• อาจต้อง 'เพิ่ม' ขนาดยา Warfarin\n• ยาออกฤทธิ์ Induce ช้า (1-2 สัปดาห์)\n• ระวัง INR ตกต่ำกว่าเป้าหมาย", wrap=True, size="xs", color="#555555", margin="xs")
+            TextComponent(text="⚡ ผลกระทบ (Effect):", weight="bold", size="sm", margin="md"),
+            TextComponent(text="Inhibit Warfarin Effect", size="xs", color="#555555", weight="bold"),
+            TextComponent(text="• ยับยั้งฤทธิ์ยา Warfarin\n• ส่งผลให้ค่า INR ลดต่ำลง", wrap=True, size="xs", color="#555555", margin="xs")
         ])
     ))
 
@@ -265,13 +267,14 @@ def build_drug_interaction_carousel():
             TextComponent(text="Pharmacodynamic Interaction", color="#cccccc", size="xs")
         ]),
         body=BoxComponent(layout="vertical", contents=[
-            TextComponent(text="💊 รายการยา (UpToDate):", weight="bold", size="sm", color="#333333"),
+            TextComponent(text="💊 รายการยา:", weight="bold", size="sm", color="#333333"),
             TextComponent(text="• NSAIDs (Ibuprofen, Naproxen)\n• COX-2 (Celecoxib)\n• Aspirin / Clopidogrel\n• SSRIs (Fluoxetine, Sertraline)\n• Ginkgo biloba / Garlic (High dose)", wrap=True, size="xs", color="#333333", margin="sm"),
             
             BoxComponent(layout="vertical", margin="md", backgroundColor="#eeeeee", height="1px"),
             
-            TextComponent(text="🛡️ Management:", weight="bold", size="sm", margin="md"),
-            TextComponent(text="• ไม่เพิ่ม INR แต่เลือดออกง่าย\n• เลี่ยง NSAIDs ใช้ Paracetamol แทน\n• ถ้าจำเป็นต้องใช้ Antiplatelet ให้พิจารณาให้ PPI ร่วมด้วย", wrap=True, size="xs", color="#555555", margin="sm")
+            TextComponent(text="⚡ ผลกระทบ (Effect):", weight="bold", size="sm", margin="md"),
+            TextComponent(text="Increased Bleeding Risk", size="xs", color="#555555", weight="bold"),
+            TextComponent(text="• ไม่ส่งผลต่อค่า INR (No Effect on INR)\n• แต่เพิ่มความเสี่ยงเลือดออก (Bleeding) โดยตรง", wrap=True, size="xs", color="#555555", margin="xs")
         ])
     ))
 
