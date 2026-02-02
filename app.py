@@ -461,5 +461,10 @@ def handle_postback(event):
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
 
+# เพิ่ม Route สำหรับหน้าแรก (Home)
+@app.route("/")
+def home():
+    return "✅ Warfy Server is Running! (ไปที่ /liff/pill-selector เพื่อใช้งาน)"
+
 if __name__ == "__main__":
     app.run(port=5000)
