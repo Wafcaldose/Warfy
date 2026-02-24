@@ -88,7 +88,7 @@ RISK_COLOR_MAP = {
 }
 
 # ==========================================
-# 🌐 LIFF 1: Calculator (+ ดึงพิกัด)
+# 🌐 LIFF 1: Calculator (ล็อคเลขอย่างเดียว)
 # ==========================================
 LIFF_CALC_HTML = """
 <!DOCTYPE html>
@@ -103,7 +103,12 @@ LIFF_CALC_HTML = """
         .section { background: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .pill-btn { width: 48%; padding: 15px; margin: 1%; border: 1px solid #ddd; border-radius: 8px; background: #f0f0f0; font-size: 18px; }
         .pill-btn.active { background: #00C851; color: white; }
-        input[type="text"] { width: 100%; padding: 12px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; font-size: 18px; }
+        
+        /* Input Style */
+        input[type="text"] { 
+            width: 100%; padding: 12px; margin-top: 5px; border-radius: 5px; 
+            border: 1px solid #ccc; box-sizing: border-box; font-size: 18px; 
+        }
         .confirm-btn { width: 100%; padding: 15px; background: #007bff; color: white; border: none; border-radius: 50px; font-size: 18px; margin-top: 10px; cursor: pointer;}
     </style>
 </head>
@@ -123,12 +128,17 @@ LIFF_CALC_HTML = """
             <input type="checkbox" id="unknownInr" onchange="toggleInr()"> ไม่ทราบ/ไม่ได้ตรวจ
         </label>
     </div>
-    <button class="confirm-btn" id="confirmBtn" onclick="sendData()">คำนวณ</button>
+    <button class="confirm-btn" onclick="sendData()">คำนวณ</button>
 
     <script>
+        // ✅ ฟังก์ชันล็อคแป้นพิมพ์ ให้พิมพ์ได้แค่เลขกับจุด
         function validateNumber(input) {
+            // ลบทุกอย่างที่ไม่ใช่ตัวเลข (0-9) หรือจุด (.)
             input.value = input.value.replace(/[^0-9.]/g, '');
-            if ((input.value.match(/\./g) || []).length > 1) { input.value = input.value.replace(/\.+$/, ""); }
+            // ป้องกันจุดหลายตัว (เช่น 2.5.5)
+            if ((input.value.match(/\./g) || []).length > 1) {
+                input.value = input.value.replace(/\.+$/, "");
+            }
         }
 
         const pillSizes = [1, 2, 3, 5];
@@ -141,27 +151,10 @@ LIFF_CALC_HTML = """
             };
             document.getElementById('btnContainer').appendChild(b);
         });
-        
         function toggleInr() {
             document.getElementById('inrValue').disabled = document.getElementById('unknownInr').checked;
             if(document.getElementById('unknownInr').checked) document.getElementById('inrValue').value = '';
         }
-
-        // ✅ ฟังก์ชันดึงพิกัด GPS
-        function getLocation() {
-            return new Promise((resolve) => {
-                if (!navigator.geolocation) {
-                    resolve("No GPS"); 
-                } else {
-                    navigator.geolocation.getCurrentPosition(
-                        (position) => { resolve(`${position.coords.latitude},${position.coords.longitude}`); },
-                        (error) => { resolve("Location Denied"); },
-                        { enableHighAccuracy: true, timeout: 5000 }
-                    );
-                }
-            });
-        }
-
         async function sendData() {
             if (!liff.isInClient()) return alert("กรุณาเปิดในแอป LINE เท่านั้น");
             if (selected.size === 0) return alert("กรุณาเลือกขนาดยาที่มี");
@@ -171,22 +164,11 @@ LIFF_CALC_HTML = """
             let inr = document.getElementById('inrValue').value;
             if (!unk && !inr) return alert("กรุณากรอก INR");
             
-            const btn = document.getElementById('confirmBtn');
-            const originalText = btn.innerText;
-            btn.innerText = "กำลังหาพิกัด📍..."; // เปลี่ยนข้อความปุ่ม
-
-            let location = await getLocation(); // รอพิกัด
-            
-            // ส่ง location ไปด้วย คั่นด้วย |
-            let msg = `📝 ข้อมูลจัดยา: ${Array.from(selected).sort().join(",")} | ${dose} | ${unk ? "Unknown" : inr} | ${location}`;
-            
+            let msg = `📝 ข้อมูลจัดยา: ${Array.from(selected).sort().join(",")} | ${dose} | ${unk ? "Unknown" : inr}`;
             try {
                 await liff.sendMessages([{type:'text', text:msg}]);
                 liff.closeWindow();
-            } catch (err) { 
-                alert("Error: " + err); 
-                btn.innerText = originalText;
-            }
+            } catch (err) { alert("Error: " + err); }
         }
         liff.init({ liffId: "{{ liff_id }}" }).then(() => { if (!liff.isLoggedIn()) liff.login(); });
     </script>
@@ -195,7 +177,7 @@ LIFF_CALC_HTML = """
 """
 
 # ==========================================
-# 🌐 LIFF 2: Interaction Checker (+ ดึงพิกัด)
+# 🌐 LIFF 2: Interaction Checker (แก้ปุ่มกดไม่ไป)
 # ==========================================
 LIFF_INTERACT_HTML = """
 <!DOCTYPE html>
@@ -251,13 +233,17 @@ LIFF_INTERACT_HTML = """
                     const item = document.createElement('div');
                     item.className = 'dropdown-item';
                     item.innerText = drug.charAt(0).toUpperCase() + drug.slice(1);
+                    // ✅ แก้ไข: ใช้ onmousedown แทน onclick เพื่อกัน input blur ก่อนกดติด
                     item.onmousedown = (e) => { e.preventDefault(); addDrug(drug); };
                     dropdown.appendChild(item);
                 });
             } else { dropdown.style.display = 'none'; }
         });
 
-        input.addEventListener('blur', () => { setTimeout(() => dropdown.style.display = 'none', 100); });
+        // ซ่อน Dropdown เมื่อกดข้างนอก
+        input.addEventListener('blur', () => {
+             setTimeout(() => dropdown.style.display = 'none', 100);
+        });
 
         function addDrug(drugKey) {
             selectedDrugs.add(drugKey);
@@ -277,39 +263,17 @@ LIFF_INTERACT_HTML = """
             checkBtn.disabled = selectedDrugs.size === 0;
             checkBtn.style.backgroundColor = selectedDrugs.size > 0 ? '#00C851' : '#ccc';
         }
-
-        // ✅ ฟังก์ชันดึงพิกัด GPS
-        function getLocation() {
-            return new Promise((resolve) => {
-                if (!navigator.geolocation) {
-                    resolve("No GPS");
-                } else {
-                    navigator.geolocation.getCurrentPosition(
-                        (position) => { resolve(`${position.coords.latitude},${position.coords.longitude}`); },
-                        (error) => { resolve("Location Denied"); },
-                        { enableHighAccuracy: true, timeout: 5000 }
-                    );
-                }
-            });
-        }
-
         async function submitData() {
             if (!liff.isInClient()) return alert("กรุณาใช้งานในแอป LINE เท่านั้น");
             if (selectedDrugs.size === 0) return alert("กรุณาเลือกยาก่อนกดตรวจสอบ");
             
-            const originalText = checkBtn.innerText;
-            checkBtn.innerText = "กำลังดึงพิกัด📍..."; // เปลี่ยนข้อความปุ่ม
-
-            let location = await getLocation(); // รอพิกัด
             const drugList = Array.from(selectedDrugs).join(", ");
-            const msg = `🔍 ตรวจสอบยา: ${drugList} | ${location}`; // ส่ง location ไปด้วย
-            
+            const msg = `🔍 ตรวจสอบยา: ${drugList}`;
             try {
                 await liff.sendMessages([{ type: 'text', text: msg }]);
                 liff.closeWindow();
             } catch (err) {
                 alert("เกิดข้อผิดพลาดในการส่งข้อมูล: " + err);
-                checkBtn.innerText = originalText;
             }
         }
         liff.init({ liffId: "{{ liff_id }}" })
@@ -490,12 +454,6 @@ def handle_message(event):
     text = event.message.text.strip()
     user_id = event.source.user_id
 
-    # คำสั่งเช็กสถานะบอทที่เพิ่มไว้ก่อนหน้านี้ (ถ้ามี)
-    if text.lower() == "ping":
-        current_time = datetime.now().strftime("%H:%M:%S")
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🏓 Pong! \nบอททำงานปกติครับ\nเวลา: {current_time}"))
-        return
-
     if text == "เช็กยาตีกัน" or text == "เช็กยา":
         flex = FlexSendMessage(alt_text="ค้นหายา", contents=BubbleContainer(body=BoxComponent(layout="vertical", contents=[TextComponent(text="🔍 เช็กยาตีกัน", weight="bold", size="lg", color="#1E90FF", align="center"), TextComponent(text="พิมพ์ชื่อยาหลายตัวพร้อมกันได้", wrap=True, size="xs", color="#aaaaaa", align="center", margin="sm"), ButtonComponent(style="primary", color="#00C851", height="sm", margin="md", action=URIAction(label="เปิดระบบค้นหา", uri=f"https://liff.line.me/{LIFF_ID_INTERACTION}"))])))
         line_bot_api.reply_message(event.reply_token, flex)
@@ -505,14 +463,8 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, flex)
         return
 
-    # 🟢 1. จัดการข้อมูลจาก LIFF Interaction (รองรับพิกัด GPS)
     if text.startswith("🔍 ตรวจสอบยา:"):
-        # ตัดข้อมูลด้วย | เผื่อไว้ว่ามีพิกัดหรือไม่มี
-        parts = text.replace("🔍 ตรวจสอบยา:", "").strip().split("|")
-        drugs_str = parts[0].strip()
-        location_str = parts[1].strip() if len(parts) > 1 else "No GPS"
-        
-        # ตัวแปร location_str เตรียมไว้สำหรับบันทึกลง Google Sheets ในอนาคต
+        drugs_str = text.replace("🔍 ตรวจสอบยา:", "").strip()
         analysis_results = analyze_drug_list(drugs_str)
         line_bot_api.reply_message(event.reply_token, build_analysis_flex(analysis_results))
         return
@@ -524,16 +476,10 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, build_analysis_flex(results))
         return
 
-    # 🟢 2. จัดการข้อมูลจาก LIFF Calculator (รองรับพิกัด GPS)
     if text.startswith("📝 ข้อมูลจัดยา:"):
         try:
             parts = text.replace("📝 ข้อมูลจัดยา:", "").strip().split("|")
-            pills_str = parts[0].strip()
-            dose_str = parts[1].strip()
-            inr_str = parts[2].strip()
-            # ตัวแปร location_str เตรียมไว้สำหรับบันทึกลง Google Sheets ในอนาคต
-            location_str = parts[3].strip() if len(parts) > 3 else "No GPS"
-
+            pills_str, dose_str, inr_str = parts[0].strip(), parts[1].strip(), parts[2].strip()
             available_tabs = [float(x) for x in pills_str.split(",")]
             weekly_dose = float(dose_str)
             inr = None if (inr_str == "Unknown" or inr_str == "ไม่มี/ไม่ทราบ INR") else float(inr_str)
