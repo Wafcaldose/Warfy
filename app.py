@@ -1,4 +1,6 @@
 import json
+import gspread
+from google.oauth2.service_account import Credentials
 from flask import Flask, request, abort, render_template_string
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -6,8 +8,7 @@ from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage,
     FlexSendMessage, BubbleContainer, BoxComponent, TextComponent,
     ImageComponent, URIAction, DatetimePickerAction, PostbackEvent,
-    CarouselContainer, ButtonComponent, PostbackAction,
-    QuickReply, QuickReplyButton, MessageAction
+    CarouselContainer, ButtonComponent, PostbackAction
 )
 import itertools
 import re
@@ -17,12 +18,11 @@ from datetime import datetime, date
 app = Flask(__name__)
 
 # ==========================================
-# 🟢 ตั้งค่า (อย่าลืมใส่ Key ของคุณให้ครบ)
+# 🟢 ตั้งค่า LINE & LIFF
 # ==========================================
 LINE_CHANNEL_ACCESS_TOKEN = "hJrtsmcBM9LT0m0jEC6h4dbp0ZWek8DwJ77PW7hypvMbGNPnld0vtFiuUpb5dXB0oiKgDAVO6C3duZARQMiLggsUmKew7SA2MoPECS9gDFebh/W0fk6ITXbzgVD3WX6iCdpdPZfaRA54aQXeEU5ezwdB04t89/1O/w1cDnyilFU="
 LINE_CHANNEL_SECRET = "b178fc8ba767114ad57ac6ab93c312ab"
 
-# ⚠️ เช็กดีๆ ว่าใส่ ID ถูกต้องและครบทั้ง 2 อันนะครับ
 LIFF_ID_CALCULATOR = "2009026200-reXDdCkf"
 LIFF_ID_INTERACTION = "2009155599-28RB35IY"
 
@@ -35,14 +35,110 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 user_sessions = {}
 
 # ==========================================
-# 💊 ฐานข้อมูลยา (Lexicomp Data)
+# 📊 ตั้งค่า Google Sheets
+# ==========================================
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+
+try:
+    creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
+    gc = gspread.authorize(creds)
+    sheet = gc.open("Warfy_Logs").sheet1
+    print("✅ Google Sheets Connected Successfully!")
+except Exception as e:
+    print(f"⚠️ Google Sheets Connection Failed: {e}")
+    sheet = None
+
+def log_to_sheets(feature, details, location):
+    if sheet is None: return 
+    try:
+        timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        maps_link = location
+        if location and "," in location and "Denied" not in location and "No GPS" not in location:
+            maps_link = f"https://www.google.com/maps?q={location}"
+        row_data = [timestamp, feature, details, maps_link]
+        sheet.append_row(row_data)
+        print("📝 Logged to Google Sheets!")
+    except Exception as e:
+        print(f"⚠️ Error logging to sheets: {e}")
+
+# ==========================================
+# 💊 ฐานข้อมูลยา (อัปเดต Rating X พร้อมลิงก์ PDF)
 # ==========================================
 INTERACTION_DB = {
-    # --- Category X (Avoid - สีแดง) ---
-    "alteplase": {"name": "Alteplase", "risk": "X", "effect": "Bleeding Risk", "detail": "ยาละลายลิ่มเลือด เพิ่มความเสี่ยงเลือดออกรุนแรง ห้ามใช้ร่วมกัน"},
-    "streptokinase": {"name": "Streptokinase", "risk": "X", "effect": "Bleeding Risk", "detail": "ยาละลายลิ่มเลือด เพิ่มความเสี่ยงเลือดออกรุนแรง ห้ามใช้ร่วมกัน"},
-    "mifepristone": {"name": "Mifepristone", "risk": "X", "effect": "Bleeding Risk", "detail": "เพิ่มความเสี่ยงเลือดออกรุนแรง ห้ามใช้ร่วมกัน"},
-    "vorapaxar": {"name": "Vorapaxar", "risk": "X", "effect": "Bleeding Risk", "detail": "ยาต้านเกล็ดเลือดรุนแรง ห้ามใช้ร่วมกัน"},
+    # --- Category X (Avoid - สีแดง) พร้อมลิงก์ PDF ---
+    "abciximab": {
+        "name": "Abciximab", "risk": "X", "effect": "Bleeding Risk", 
+        "detail": "เพิ่มความเสี่ยงในการเกิดภาวะเลือดออกอย่างรุนแรง", 
+        "management": "หลีกเลี่ยงการใช้ร่วมกัน (Avoid combination) เนื่องจากเสี่ยงเลือดออกสูงมาก", 
+        "reference": "UpToDate Lexidrug: Abciximab", 
+        "pdf_url": "https://drive.google.com/file/d/15V88vAokwnIgx9qYnUNYVBgWsXz-mbaP/view?usp=drive_link"
+    },
+    "alteplase": {
+        "name": "Alteplase", "risk": "X", "effect": "Bleeding Risk", 
+        "detail": "ยาละลายลิ่มเลือด เพิ่มความเสี่ยงเลือดออกรุนแรง ห้ามใช้ร่วมกัน", 
+        "management": "ห้ามใช้ร่วมกันเด็ดขาด ยกเว้นกรณีฉุกเฉินช่วยชีวิตที่แพทย์สั่งให้ระงับ Warfarin", 
+        "reference": "UpToDate Lexidrug: Alteplase", 
+        "pdf_url": "https://drive.google.com/file/d/1j_1wTVE-sbTiMg3ZbZgRoUmlP0SXAjRj/view?usp=drive_link"
+    },
+    "defibrotide": {
+        "name": "Defibrotide", "risk": "X", "effect": "Bleeding Risk", 
+        "detail": "เพิ่มความเสี่ยงในการเกิดภาวะเลือดออก", 
+        "management": "หลีกเลี่ยงการใช้ร่วมกันอย่างเด็ดขาด", 
+        "reference": "UpToDate Lexidrug: Defibrotide", 
+        "pdf_url": "https://drive.google.com/file/d/1L-FCZvz2mzhJU3zRzfZOLroBfWrDJVzd/view?usp=drive_link"
+    },
+    "hemin": {
+        "name": "Hemin", "risk": "X", "effect": "Altered Anticoagulant Effect", 
+        "detail": "อาจรบกวนประสิทธิภาพของยาต้านการแข็งตัวของเลือด", 
+        "management": "หลีกเลี่ยงการใช้ร่วมกัน", 
+        "reference": "UpToDate Lexidrug: Hemin", 
+        "pdf_url": "https://drive.google.com/file/d/1kh69ua1CxyM4TrTNPKySL2Ud4R9o0iOq/view?usp=drive_link"
+    },
+    "mifepristone": {
+        "name": "Mifepristone", "risk": "X", "effect": "Bleeding Risk", 
+        "detail": "เพิ่มความเสี่ยงเลือดออกรุนแรงทางช่องคลอด", 
+        "management": "หลีกเลี่ยงการใช้ร่วมกับ Warfarin โดยเฉพาะเมื่อใช้ในข้อบ่งชี้บางประการ", 
+        "reference": "UpToDate Lexidrug: Mifepristone", 
+        "pdf_url": "https://drive.google.com/file/d/1z-eGMjZapQ54Kd7Q_Xb7gBrDuXNNDk-r/view?usp=drive_link"
+    },
+    "omacetaxine": {
+        "name": "Omacetaxine", "risk": "X", "effect": "Bleeding Risk", 
+        "detail": "รบกวนการแข็งตัวของเลือดและเพิ่มความเสี่ยงเลือดออก", 
+        "management": "หลีกเลี่ยงการใช้ร่วมกัน", 
+        "reference": "UpToDate Lexidrug: Omacetaxine", 
+        "pdf_url": "https://drive.google.com/file/d/1K56QeEQzJQB3VU3obQaDrDLwc0nPcd3w/view?usp=drive_link"
+    },
+    "oxatomide": {
+        "name": "Oxatomide", "risk": "X", "effect": "Increased Risk of Adverse Effects", 
+        "detail": "อาจเกิดปฏิกิริยาระหว่างยาที่รุนแรง", 
+        "management": "หลีกเลี่ยงการใช้ร่วมกัน", 
+        "reference": "UpToDate Lexidrug: Oxatomide", 
+        "pdf_url": "https://drive.google.com/file/d/1ujGEx2gLE_r2R0nOC5uWg4IGlfnZWG9_/view?usp=drive_link"
+    },
+    "streptokinase": {
+        "name": "Streptokinase", "risk": "X", "effect": "Bleeding Risk", 
+        "detail": "ยาละลายลิ่มเลือด เพิ่มความเสี่ยงเลือดออกรุนแรง ห้ามใช้ร่วมกัน", 
+        "management": "ห้ามใช้ร่วมกันเด็ดขาด", 
+        "reference": "UpToDate Lexidrug: Streptokinase", 
+        "pdf_url": "https://drive.google.com/file/d/1TPEFDyOcZ4wDOfRMgz9zhKt3Du47PVZ2/view?usp=drive_link"
+    },
+    "tenecteplase": {
+        "name": "Tenecteplase", "risk": "X", "effect": "Bleeding Risk", 
+        "detail": "ยาละลายลิ่มเลือด เพิ่มความเสี่ยงเลือดออกอย่างรุนแรง", 
+        "management": "หลีกเลี่ยงการใช้ร่วมกัน (ขึ้นอยู่กับข้อบ่งชี้ทางคลินิก)", 
+        "reference": "UpToDate Lexidrug: Tenecteplase", 
+        "pdf_url": "https://drive.google.com/file/d/1hl535UMybwMHyJ44E5M7sS9BebCPcm9Q/view?usp=drive_link"
+    },
+    "vorapaxar": {
+        "name": "Vorapaxar", "risk": "X", "effect": "Bleeding Risk", 
+        "detail": "ยาต้านเกล็ดเลือดรุนแรง ห้ามใช้ร่วมกัน", 
+        "management": "ห้ามใช้ร่วมกันเด็ดขาด เนื่องจากความเสี่ยงตกเลือดในสมอง", 
+        "reference": "UpToDate Lexidrug: Vorapaxar", 
+        "pdf_url": "https://drive.google.com/file/d/1rKNzzEMjL-010dv18a77vAksd3edLIC8/view?usp=drive_link"
+    },
 
     # --- Category D (Modify - สีส้ม) ---
     "amiodarone": {"name": "Amiodarone", "risk": "D", "effect": "Incr. INR (Significant)", "detail": "ยับยั้งการทำลาย Warfarin อย่างมาก ทำให้ INR พุ่งสูง พิจารณาลดขนาด Warfarin 30-50%"},
@@ -88,7 +184,7 @@ RISK_COLOR_MAP = {
 }
 
 # ==========================================
-# 🌐 LIFF 1: Calculator (ล็อคเลขอย่างเดียว)
+# 🌐 LIFF HTML
 # ==========================================
 LIFF_CALC_HTML = """
 <!DOCTYPE html>
@@ -103,12 +199,7 @@ LIFF_CALC_HTML = """
         .section { background: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .pill-btn { width: 48%; padding: 15px; margin: 1%; border: 1px solid #ddd; border-radius: 8px; background: #f0f0f0; font-size: 18px; }
         .pill-btn.active { background: #00C851; color: white; }
-        
-        /* Input Style */
-        input[type="text"] { 
-            width: 100%; padding: 12px; margin-top: 5px; border-radius: 5px; 
-            border: 1px solid #ccc; box-sizing: border-box; font-size: 18px; 
-        }
+        input[type="text"] { width: 100%; padding: 12px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; font-size: 18px; }
         .confirm-btn { width: 100%; padding: 15px; background: #007bff; color: white; border: none; border-radius: 50px; font-size: 18px; margin-top: 10px; cursor: pointer;}
     </style>
 </head>
@@ -128,17 +219,12 @@ LIFF_CALC_HTML = """
             <input type="checkbox" id="unknownInr" onchange="toggleInr()"> ไม่ทราบ/ไม่ได้ตรวจ
         </label>
     </div>
-    <button class="confirm-btn" onclick="sendData()">คำนวณ</button>
+    <button class="confirm-btn" id="confirmBtn" onclick="sendData()">คำนวณ</button>
 
     <script>
-        // ✅ ฟังก์ชันล็อคแป้นพิมพ์ ให้พิมพ์ได้แค่เลขกับจุด
         function validateNumber(input) {
-            // ลบทุกอย่างที่ไม่ใช่ตัวเลข (0-9) หรือจุด (.)
             input.value = input.value.replace(/[^0-9.]/g, '');
-            // ป้องกันจุดหลายตัว (เช่น 2.5.5)
-            if ((input.value.match(/\./g) || []).length > 1) {
-                input.value = input.value.replace(/\.+$/, "");
-            }
+            if ((input.value.match(/\./g) || []).length > 1) { input.value = input.value.replace(/\.+$/, ""); }
         }
 
         const pillSizes = [1, 2, 3, 5];
@@ -151,10 +237,26 @@ LIFF_CALC_HTML = """
             };
             document.getElementById('btnContainer').appendChild(b);
         });
+        
         function toggleInr() {
             document.getElementById('inrValue').disabled = document.getElementById('unknownInr').checked;
             if(document.getElementById('unknownInr').checked) document.getElementById('inrValue').value = '';
         }
+
+        function getLocation() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve("No GPS"); 
+                } else {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => { resolve(`${position.coords.latitude},${position.coords.longitude}`); },
+                        (error) => { resolve("Location Denied"); },
+                        { enableHighAccuracy: true, timeout: 5000 }
+                    );
+                }
+            });
+        }
+
         async function sendData() {
             if (!liff.isInClient()) return alert("กรุณาเปิดในแอป LINE เท่านั้น");
             if (selected.size === 0) return alert("กรุณาเลือกขนาดยาที่มี");
@@ -164,11 +266,20 @@ LIFF_CALC_HTML = """
             let inr = document.getElementById('inrValue').value;
             if (!unk && !inr) return alert("กรุณากรอก INR");
             
-            let msg = `📝 ข้อมูลจัดยา: ${Array.from(selected).sort().join(",")} | ${dose} | ${unk ? "Unknown" : inr}`;
+            const btn = document.getElementById('confirmBtn');
+            const originalText = btn.innerText;
+            btn.innerText = "กำลังหาพิกัด📍...";
+
+            let location = await getLocation(); 
+            let msg = `📝 ข้อมูลจัดยา: ${Array.from(selected).sort().join(",")} | ${dose} | ${unk ? "Unknown" : inr} | ${location}`;
+            
             try {
                 await liff.sendMessages([{type:'text', text:msg}]);
                 liff.closeWindow();
-            } catch (err) { alert("Error: " + err); }
+            } catch (err) { 
+                alert("Error: " + err); 
+                btn.innerText = originalText;
+            }
         }
         liff.init({ liffId: "{{ liff_id }}" }).then(() => { if (!liff.isLoggedIn()) liff.login(); });
     </script>
@@ -176,9 +287,7 @@ LIFF_CALC_HTML = """
 </html>
 """
 
-# ==========================================
-# 🌐 LIFF 2: Interaction Checker (แก้ปุ่มกดไม่ไป)
-# ==========================================
+# ✅ ปรับข้อความหัวข้อ H3 แล้ว
 LIFF_INTERACT_HTML = """
 <!DOCTYPE html>
 <html>
@@ -205,7 +314,7 @@ LIFF_INTERACT_HTML = """
 </head>
 <body>
     <div class="container">
-        <h3>🔍 ตรวจสอบยาตีกัน</h3>
+        <h3>🔍 ตรวจสอบ Warfarin Drug interaction</h3>
         <small style="color:#666;">พิมพ์ชื่อยาแล้ว <b>กดเลือกจากรายการ</b></small>
         <div class="search-box">
             <input type="text" id="drugInput" placeholder="พิมพ์ชื่อยา (เช่น Para...)" autocomplete="off">
@@ -233,17 +342,13 @@ LIFF_INTERACT_HTML = """
                     const item = document.createElement('div');
                     item.className = 'dropdown-item';
                     item.innerText = drug.charAt(0).toUpperCase() + drug.slice(1);
-                    // ✅ แก้ไข: ใช้ onmousedown แทน onclick เพื่อกัน input blur ก่อนกดติด
                     item.onmousedown = (e) => { e.preventDefault(); addDrug(drug); };
                     dropdown.appendChild(item);
                 });
             } else { dropdown.style.display = 'none'; }
         });
 
-        // ซ่อน Dropdown เมื่อกดข้างนอก
-        input.addEventListener('blur', () => {
-             setTimeout(() => dropdown.style.display = 'none', 100);
-        });
+        input.addEventListener('blur', () => { setTimeout(() => dropdown.style.display = 'none', 100); });
 
         function addDrug(drugKey) {
             selectedDrugs.add(drugKey);
@@ -263,17 +368,38 @@ LIFF_INTERACT_HTML = """
             checkBtn.disabled = selectedDrugs.size === 0;
             checkBtn.style.backgroundColor = selectedDrugs.size > 0 ? '#00C851' : '#ccc';
         }
+
+        function getLocation() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve("No GPS");
+                } else {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => { resolve(`${position.coords.latitude},${position.coords.longitude}`); },
+                        (error) => { resolve("Location Denied"); },
+                        { enableHighAccuracy: true, timeout: 5000 }
+                    );
+                }
+            });
+        }
+
         async function submitData() {
             if (!liff.isInClient()) return alert("กรุณาใช้งานในแอป LINE เท่านั้น");
             if (selectedDrugs.size === 0) return alert("กรุณาเลือกยาก่อนกดตรวจสอบ");
             
+            const originalText = checkBtn.innerText;
+            checkBtn.innerText = "กำลังดึงพิกัด📍..."; 
+
+            let location = await getLocation(); 
             const drugList = Array.from(selectedDrugs).join(", ");
-            const msg = `🔍 ตรวจสอบยา: ${drugList}`;
+            const msg = `🔍 ตรวจสอบยา: ${drugList} | ${location}`; 
+            
             try {
                 await liff.sendMessages([{ type: 'text', text: msg }]);
                 liff.closeWindow();
             } catch (err) {
                 alert("เกิดข้อผิดพลาดในการส่งข้อมูล: " + err);
+                checkBtn.innerText = originalText;
             }
         }
         liff.init({ liffId: "{{ liff_id }}" })
@@ -285,7 +411,7 @@ LIFF_INTERACT_HTML = """
 """
 
 # ==========================================
-# 🛤️ Routes & Logic
+# 🛤️ Routes & Logic Helpers
 # ==========================================
 @app.route("/")
 def home(): return "✅ Warfy Server is Running!"
@@ -325,24 +451,46 @@ def build_analysis_flex(results):
             "X": "X - หลีกเลี่ยง (Avoid)", "D": "D - ปรับเปลี่ยน (Modify)",
             "C": "C - ติดตามผล (Monitor)", "B": "B - ไม่ต้องกังวล", "A": "A - ปลอดภัย"
         }
+        
+        body_contents = [
+            BoxComponent(layout="horizontal", contents=[
+                TextComponent(text=item['name'], weight="bold", size="lg", flex=1, color="#333333"),
+                TextComponent(text=risk, weight="bold", color="#FFFFFF", align="center", gravity="center", backgroundColor=color, cornerRadius="20px", paddingAll="xs", width="30px")
+            ]),
+            TextComponent(text=risk_text_map.get(risk, risk), size="xs", weight="bold", color=color, margin="sm"),
+            BoxComponent(layout="vertical", margin="md", backgroundColor="#f0f0f0", height="1px"),
+            TextComponent(text="ผลกระทบ:", size="xs", color="#888888", margin="md"),
+            TextComponent(text=item['effect'], size="sm", wrap=True, color="#333333"),
+            TextComponent(text="รายละเอียด:", size="xs", color="#888888", margin="md"),
+            TextComponent(text=item['detail'], size="sm", wrap=True, color="#333333")
+        ]
+
+        if risk in ['X', 'D']:
+            if 'management' in item and item['management']:
+                body_contents.append(TextComponent(text="การจัดการ (Management):", size="xs", color="#D32F2F", margin="md", weight="bold"))
+                body_contents.append(TextComponent(text=item['management'], size="sm", wrap=True, color="#333333"))
+            
+            if 'reference' in item and item['reference']:
+                body_contents.append(BoxComponent(layout="vertical", margin="md", backgroundColor="#f0f0f0", height="1px"))
+                body_contents.append(TextComponent(text="อ้างอิง (Reference):", size="xxs", color="#888888", margin="sm"))
+                body_contents.append(TextComponent(text=item['reference'], size="xxs", wrap=True, color="#aaaaaa"))
+
+            if 'pdf_url' in item and item['pdf_url']:
+                body_contents.append(ButtonComponent(
+                    style="secondary", 
+                    height="sm", 
+                    margin="md", 
+                    color="#e3f2fd",
+                    action=URIAction(label="📄 เปิดอ่านเอกสารเต็ม", uri=item['pdf_url'])
+                ))
+
         bubble = BubbleContainer(
-            body=BoxComponent(layout="vertical", contents=[
-                BoxComponent(layout="horizontal", contents=[
-                    TextComponent(text=item['name'], weight="bold", size="lg", flex=1, color="#333333"),
-                    TextComponent(text=risk, weight="bold", color="#FFFFFF", align="center", gravity="center", backgroundColor=color, cornerRadius="20px", paddingAll="xs", width="30px")
-                ]),
-                TextComponent(text=risk_text_map.get(risk, risk), size="xs", weight="bold", color=color, margin="sm"),
-                BoxComponent(layout="vertical", margin="md", backgroundColor="#f0f0f0", height="1px"),
-                TextComponent(text="ผลกระทบ:", size="xs", color="#888888", margin="md"),
-                TextComponent(text=item['effect'], size="sm", wrap=True, color="#333333"),
-                TextComponent(text="คำแนะนำ:", size="xs", color="#888888", margin="md"),
-                TextComponent(text=item['detail'], size="sm", wrap=True, color="#333333")
-            ])
+            body=BoxComponent(layout="vertical", contents=body_contents)
         )
         bubbles.append(bubble)
     
     bubbles.append(BubbleContainer(body=BoxComponent(layout="vertical", contents=[
-        TextComponent(text="📚 แหล่งอ้างอิง:", weight="bold", size="sm", color="#1E90FF"),
+        TextComponent(text="📚 แหล่งอ้างอิงหลัก:", weight="bold", size="sm", color="#1E90FF"),
         TextComponent(text="UpToDate® Lexidrug™ (Warfarin Interactions)", size="xs", color="#666666", wrap=True, margin="sm"),
         TextComponent(text="*ข้อมูลเพื่อการศึกษา โปรดปรึกษาแพทย์ก่อนปรับยา", size="xxs", color="#aaaaaa", wrap=True, margin="md")
     ])))
@@ -454,6 +602,11 @@ def handle_message(event):
     text = event.message.text.strip()
     user_id = event.source.user_id
 
+    if text.lower() == "ping":
+        current_time = datetime.now().strftime("%H:%M:%S")
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🏓 Pong! \nบอททำงานปกติครับ\nเวลา: {current_time}"))
+        return
+
     if text == "เช็กยาตีกัน" or text == "เช็กยา":
         flex = FlexSendMessage(alt_text="ค้นหายา", contents=BubbleContainer(body=BoxComponent(layout="vertical", contents=[TextComponent(text="🔍 เช็กยาตีกัน", weight="bold", size="lg", color="#1E90FF", align="center"), TextComponent(text="พิมพ์ชื่อยาหลายตัวพร้อมกันได้", wrap=True, size="xs", color="#aaaaaa", align="center", margin="sm"), ButtonComponent(style="primary", color="#00C851", height="sm", margin="md", action=URIAction(label="เปิดระบบค้นหา", uri=f"https://liff.line.me/{LIFF_ID_INTERACTION}"))])))
         line_bot_api.reply_message(event.reply_token, flex)
@@ -464,7 +617,12 @@ def handle_message(event):
         return
 
     if text.startswith("🔍 ตรวจสอบยา:"):
-        drugs_str = text.replace("🔍 ตรวจสอบยา:", "").strip()
+        parts = text.replace("🔍 ตรวจสอบยา:", "").strip().split("|")
+        drugs_str = parts[0].strip()
+        location_str = parts[1].strip() if len(parts) > 1 else "No GPS"
+        
+        log_to_sheets("เช็กยาตีกัน", f"ค้นหา: {drugs_str}", location_str)
+
         analysis_results = analyze_drug_list(drugs_str)
         line_bot_api.reply_message(event.reply_token, build_analysis_flex(analysis_results))
         return
@@ -472,6 +630,9 @@ def handle_message(event):
     is_eng = re.match(r'^[a-zA-Z]+$', text)
     if text.startswith("เช็กยา ") or is_eng:
         keyword = text.replace("เช็กยา ", "").strip()
+        
+        log_to_sheets("เช็กยาตีกัน (พิมพ์เอง)", f"ค้นหา: {keyword}", "No GPS")
+
         results = analyze_drug_list(keyword)
         line_bot_api.reply_message(event.reply_token, build_analysis_flex(results))
         return
@@ -479,12 +640,20 @@ def handle_message(event):
     if text.startswith("📝 ข้อมูลจัดยา:"):
         try:
             parts = text.replace("📝 ข้อมูลจัดยา:", "").strip().split("|")
-            pills_str, dose_str, inr_str = parts[0].strip(), parts[1].strip(), parts[2].strip()
+            pills_str = parts[0].strip()
+            dose_str = parts[1].strip()
+            inr_str = parts[2].strip()
+            location_str = parts[3].strip() if len(parts) > 3 else "No GPS"
+
             available_tabs = [float(x) for x in pills_str.split(",")]
             weekly_dose = float(dose_str)
             inr = None if (inr_str == "Unknown" or inr_str == "ไม่มี/ไม่ทราบ INR") else float(inr_str)
 
             min_t, max_t, msg, skip = get_dose_adjustment_range(inr, weekly_dose)
+            
+            details = f"Dose เดิม: {weekly_dose}mg | INR: {inr_str} | ยาที่มี: {pills_str}mg | แนะนำ: {msg}"
+            log_to_sheets("คำนวณยา", details, location_str)
+
             if min_t is None and inr is not None:
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
                 return
