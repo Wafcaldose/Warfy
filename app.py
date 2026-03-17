@@ -69,60 +69,125 @@ def log_to_sheets(feature, details, location="No GPS"):
         print(f"⚠️ Error logging to sheets: {e}")
 
 # ==========================================
-# 💊 ฐานข้อมูลยา 
+# 💊 ฐานข้อมูลยา (ฉบับสมบูรณ์)
 # ==========================================
 INTERACTION_DB = {
-    # --- Category X (Avoid - สีแดง) ---
-    "abciximab": {"name": "Abciximab", "risk": "X", "effect": "Bleeding Risk", "detail": "เพิ่มความเสี่ยงในการเกิดภาวะเลือดออกอย่างรุนแรง", "management": "หลีกเลี่ยงการใช้ร่วมกัน (Avoid combination) เนื่องจากเสี่ยงเลือดออกสูงมาก", "reference": "UpToDate Lexidrug: Abciximab", "pdf_url": "https://drive.google.com/file/d/15V88vAokwnIgx9qYnUNYVBgWsXz-mbaP/view?usp=drive_link"},
-    "alteplase": {"name": "Alteplase", "risk": "X", "effect": "Bleeding Risk", "detail": "ยาละลายลิ่มเลือด เพิ่มความเสี่ยงเลือดออกรุนแรง ห้ามใช้ร่วมกัน", "management": "ห้ามใช้ร่วมกันเด็ดขาด ยกเว้นกรณีฉุกเฉินช่วยชีวิตที่แพทย์สั่งให้ระงับ Warfarin", "reference": "UpToDate Lexidrug: Alteplase", "pdf_url": "https://drive.google.com/file/d/1j_1wTVE-sbTiMg3ZbZgRoUmlP0SXAjRj/view?usp=drive_link"},
+    # 🔴 --- Category X (Avoid - ห้ามใช้ร่วมกัน) ---
+    "abciximab": {"name": "Abciximab", "risk": "X", "effect": "Bleeding Risk", "detail": "เพิ่มความเสี่ยงในการเกิดภาวะเลือดออกอย่างรุนแรง", "management": "หลีกเลี่ยงการใช้ร่วมกัน (Avoid combination)", "reference": "UpToDate Lexidrug: Abciximab", "pdf_url": "https://drive.google.com/file/d/15V88vAokwnIgx9qYnUNYVBgWsXz-mbaP/view?usp=drive_link"},
+    "alteplase": {"name": "Alteplase", "risk": "X", "effect": "Bleeding Risk", "detail": "ยาละลายลิ่มเลือด เพิ่มความเสี่ยงเลือดออกรุนแรง ห้ามใช้ร่วมกัน", "management": "ห้ามใช้ร่วมกันเด็ดขาด", "reference": "UpToDate Lexidrug: Alteplase", "pdf_url": "https://drive.google.com/file/d/1j_1wTVE-sbTiMg3ZbZgRoUmlP0SXAjRj/view?usp=drive_link"},
     "defibrotide": {"name": "Defibrotide", "risk": "X", "effect": "Bleeding Risk", "detail": "เพิ่มความเสี่ยงในการเกิดภาวะเลือดออก", "management": "หลีกเลี่ยงการใช้ร่วมกันอย่างเด็ดขาด", "reference": "UpToDate Lexidrug: Defibrotide", "pdf_url": "https://drive.google.com/file/d/1L-FCZvz2mzhJU3zRzfZOLroBfWrDJVzd/view?usp=drive_link"},
     "hemin": {"name": "Hemin", "risk": "X", "effect": "Altered Anticoagulant Effect", "detail": "อาจรบกวนประสิทธิภาพของยาต้านการแข็งตัวของเลือด", "management": "หลีกเลี่ยงการใช้ร่วมกัน", "reference": "UpToDate Lexidrug: Hemin", "pdf_url": "https://drive.google.com/file/d/1kh69ua1CxyM4TrTNPKySL2Ud4R9o0iOq/view?usp=drive_link"},
-    "mifepristone": {"name": "Mifepristone", "risk": "X", "effect": "Bleeding Risk", "detail": "เพิ่มความเสี่ยงเลือดออกรุนแรงทางช่องคลอด", "management": "หลีกเลี่ยงการใช้ร่วมกับ Warfarin โดยเฉพาะเมื่อใช้ในข้อบ่งชี้บางประการ", "reference": "UpToDate Lexidrug: Mifepristone", "pdf_url": "https://drive.google.com/file/d/1z-eGMjZapQ54Kd7Q_Xb7gBrDuXNNDk-r/view?usp=drive_link"},
+    "mifepristone": {"name": "Mifepristone", "risk": "X", "effect": "Bleeding Risk", "detail": "เพิ่มความเสี่ยงเลือดออกรุนแรงทางช่องคลอด", "management": "หลีกเลี่ยงการใช้ร่วมกับ Warfarin", "reference": "UpToDate Lexidrug: Mifepristone", "pdf_url": "https://drive.google.com/file/d/1z-eGMjZapQ54Kd7Q_Xb7gBrDuXNNDk-r/view?usp=drive_link"},
     "omacetaxine": {"name": "Omacetaxine", "risk": "X", "effect": "Bleeding Risk", "detail": "รบกวนการแข็งตัวของเลือดและเพิ่มความเสี่ยงเลือดออก", "management": "หลีกเลี่ยงการใช้ร่วมกัน", "reference": "UpToDate Lexidrug: Omacetaxine", "pdf_url": "https://drive.google.com/file/d/1K56QeEQzJQB3VU3obQaDrDLwc0nPcd3w/view?usp=drive_link"},
     "oxatomide": {"name": "Oxatomide", "risk": "X", "effect": "Increased Risk of Adverse Effects", "detail": "อาจเกิดปฏิกิริยาระหว่างยาที่รุนแรง", "management": "หลีกเลี่ยงการใช้ร่วมกัน", "reference": "UpToDate Lexidrug: Oxatomide", "pdf_url": "https://drive.google.com/file/d/1ujGEx2gLE_r2R0nOC5uWg4IGlfnZWG9_/view?usp=drive_link"},
-    "streptokinase": {"name": "Streptokinase", "risk": "X", "effect": "Bleeding Risk", "detail": "ยาละลายลิ่มเลือด เพิ่มความเสี่ยงเลือดออกรุนแรง ห้ามใช้ร่วมกัน", "management": "ห้ามใช้ร่วมกันเด็ดขาด", "reference": "UpToDate Lexidrug: Streptokinase", "pdf_url": "https://drive.google.com/file/d/1TPEFDyOcZ4wDOfRMgz9zhKt3Du47PVZ2/view?usp=drive_link"},
-    "tenecteplase": {"name": "Tenecteplase", "risk": "X", "effect": "Bleeding Risk", "detail": "ยาละลายลิ่มเลือด เพิ่มความเสี่ยงเลือดออกอย่างรุนแรง", "management": "หลีกเลี่ยงการใช้ร่วมกัน (ขึ้นอยู่กับข้อบ่งชี้ทางคลินิก)", "reference": "UpToDate Lexidrug: Tenecteplase", "pdf_url": "https://drive.google.com/file/d/1hl535UMybwMHyJ44E5M7sS9BebCPcm9Q/view?usp=drive_link"},
+    "streptokinase": {"name": "Streptokinase", "risk": "X", "effect": "Bleeding Risk", "detail": "ยาละลายลิ่มเลือด เพิ่มความเสี่ยงเลือดออกรุนแรง", "management": "ห้ามใช้ร่วมกันเด็ดขาด", "reference": "UpToDate Lexidrug: Streptokinase", "pdf_url": "https://drive.google.com/file/d/1TPEFDyOcZ4wDOfRMgz9zhKt3Du47PVZ2/view?usp=drive_link"},
+    "tenecteplase": {"name": "Tenecteplase", "risk": "X", "effect": "Bleeding Risk", "detail": "ยาละลายลิ่มเลือด เพิ่มความเสี่ยงเลือดออกอย่างรุนแรง", "management": "หลีกเลี่ยงการใช้ร่วมกัน", "reference": "UpToDate Lexidrug: Tenecteplase", "pdf_url": "https://drive.google.com/file/d/1hl535UMybwMHyJ44E5M7sS9BebCPcm9Q/view?usp=drive_link"},
     "vorapaxar": {"name": "Vorapaxar", "risk": "X", "effect": "Bleeding Risk", "detail": "ยาต้านเกล็ดเลือดรุนแรง ห้ามใช้ร่วมกัน", "management": "ห้ามใช้ร่วมกันเด็ดขาด เนื่องจากความเสี่ยงตกเลือดในสมอง", "reference": "UpToDate Lexidrug: Vorapaxar", "pdf_url": "https://drive.google.com/file/d/1rKNzzEMjL-010dv18a77vAksd3edLIC8/view?usp=drive_link"},
+    "apixaban": {"name": "Apixaban", "risk": "X", "effect": "Bleeding Risk", "detail": "DOACs ยาต้านการแข็งตัวของเลือด ห้ามใช้ซ้ำซ้อนกับ Warfarin", "management": "หลีกเลี่ยงการใช้ร่วมกัน (ยกเว้นช่วง Bridging therapy ตามแพทย์สั่ง)"},
+    "rivaroxaban": {"name": "Rivaroxaban", "risk": "X", "effect": "Bleeding Risk", "detail": "DOACs ยาต้านการแข็งตัวของเลือด ห้ามใช้ซ้ำซ้อนกับ Warfarin", "management": "หลีกเลี่ยงการใช้ร่วมกัน"},
+    "dabigatran": {"name": "Dabigatran", "risk": "X", "effect": "Bleeding Risk", "detail": "DOACs ยาต้านการแข็งตัวของเลือด ห้ามใช้ซ้ำซ้อนกับ Warfarin", "management": "หลีกเลี่ยงการใช้ร่วมกัน"},
 
-    # --- Category D (Modify - สีส้ม) ---
-    "amiodarone": {"name": "Amiodarone", "risk": "D", "effect": "Incr. INR (Significant)", "detail": "ยับยั้งการทำลาย Warfarin อย่างมาก ทำให้ INR พุ่งสูง พิจารณาลดขนาด Warfarin 30-50%"},
-    "carbamazepine": {"name": "Carbamazepine", "risk": "D", "effect": "Decr. INR", "detail": "เร่งการทำลาย Warfarin ทำให้ INR ต่ำลง ต้องติดตามและอาจต้องเพิ่มขนาดยา"},
-    "fluconazole": {"name": "Fluconazole", "risk": "D", "effect": "Incr. INR", "detail": "เพิ่มระดับ Warfarin อย่างมีนัยสำคัญ พิจารณาลดขนาด Warfarin"},
-    "metronidazole": {"name": "Metronidazole", "risk": "D", "effect": "Incr. INR (Significant)", "detail": "เพิ่มระดับ Warfarin อย่างมาก พิจารณาลดขนาด Warfarin 30% หรือมากกว่า"},
-    "rifampin": {"name": "Rifampin", "risk": "D", "effect": "Decr. INR (Significant)", "detail": "ลดระดับ Warfarin อย่างมากและรวดเร็ว อาจต้องเพิ่มขนาดยา 100-200% (ปรึกษาแพทย์)"},
-    "bactrim": {"name": "Co-trimoxazole (Bactrim)", "risk": "D", "effect": "Incr. INR (Significant)", "detail": "เสี่ยง INR พุ่งสูงมาก พิจารณาลดขนาด Warfarin และติดตามใกล้ชิด"},
+    # 🟠 --- Category D (Modify - ส่งผลรุนแรง ต้องปรับขนาดยา) ---
+    "fluconazole": {"name": "Fluconazole", "risk": "D", "effect": "Incr. INR (Significant)", "detail": "เพิ่มระดับ Warfarin อย่างมาก พิจารณาลดขนาด Warfarin ลง"},
+    "ketoconazole": {"name": "Ketoconazole", "risk": "D", "effect": "Incr. INR", "detail": "ยับยั้งเอนไซม์ CYP ทำให้ INR สูงขึ้นมาก"},
+    "itraconazole": {"name": "Itraconazole", "risk": "D", "effect": "Incr. INR", "detail": "ยับยั้งเอนไซม์ CYP ทำให้ INR สูงขึ้นมาก"},
+    "miconazole": {"name": "Miconazole", "risk": "D", "effect": "Incr. INR (Severe)", "detail": "แม้เป็นยาทาปาก (Oral gel) ก็สามารถดูดซึมและทำให้ INR พุ่งสูงอันตรายได้"},
+    "metronidazole": {"name": "Metronidazole", "risk": "D", "effect": "Incr. INR (Significant)", "detail": "เพิ่มระดับ Warfarin อย่างมาก พิจารณาลดขนาด Warfarin 30-50%"},
+    "bactrim": {"name": "Co-trimoxazole (Bactrim)", "risk": "D", "effect": "Incr. INR (Significant)", "detail": "เสี่ยง INR พุ่งสูงมาก พิจารณาลดขนาด Warfarin 10-20% ทันทีที่เริ่มยา"},
     "sulfamethoxazole": {"name": "Sulfamethoxazole", "risk": "D", "effect": "Incr. INR", "detail": "ส่วนประกอบหลักใน Bactrim เพิ่ม INR สูง"},
-    
-    # --- Category C, B, A ---
-    "amoxicillin": {"name": "Amoxicillin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจเพิ่ม INR ในบางราย ควรติดตามผล"},
-    "aspirin": {"name": "Aspirin", "risk": "C", "effect": "Bleeding Risk", "detail": "เพิ่มความเสี่ยงเลือดออก (Antiplatelet)"},
-    "azithromycin": {"name": "Azithromycin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจเพิ่ม INR ได้ ควรติดตามผล"},
-    "celecoxib": {"name": "Celecoxib", "risk": "C", "effect": "Bleeding Risk", "detail": "NSAIDs เพิ่มความเสี่ยงเลือดออก"},
-    "ciprofloxacin": {"name": "Ciprofloxacin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจยับยั้งการทำลาย Warfarin ควรติดตาม INR"},
-    "clopidogrel": {"name": "Clopidogrel", "risk": "C", "effect": "Bleeding Risk", "detail": "เพิ่มความเสี่ยงเลือดออก (Antiplatelet)"},
-    "diclofenac": {"name": "Diclofenac", "risk": "C", "effect": "Bleeding Risk", "detail": "NSAIDs เพิ่มความเสี่ยงเลือดออกและระคายเคืองกระเพาะ"},
-    "ibuprofen": {"name": "Ibuprofen", "risk": "C", "effect": "Bleeding Risk", "detail": "NSAIDs เพิ่มความเสี่ยงเลือดออก"},
-    "levofloxacin": {"name": "Levofloxacin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจเพิ่มฤทธิ์ Warfarin ควรติดตาม INR"},
+    "clarithromycin": {"name": "Clarithromycin", "risk": "D", "effect": "Incr. INR", "detail": "ยับยั้งการทำลาย Warfarin แนะนำลดขนาดยาและติดตามใกล้ชิด"},
+    "erythromycin": {"name": "Erythromycin", "risk": "D", "effect": "Incr. INR", "detail": "ยับยั้งเอนไซม์การทำลาย Warfarin"},
+    "rifampin": {"name": "Rifampin", "risk": "D", "effect": "Decr. INR (Significant)", "detail": "เร่งการทำลาย Warfarin อย่างมาก (CYP Inducer) อาจต้องเพิ่มขนาดยา Warfarin 100-200%"},
+    "amiodarone": {"name": "Amiodarone", "risk": "D", "effect": "Incr. INR (Significant)", "detail": "ยับยั้งการทำลาย Warfarin อย่างมาก ทำให้ INR พุ่งสูง พิจารณาลดขนาด Warfarin 30-50%"},
+    "carbamazepine": {"name": "Carbamazepine", "risk": "D", "effect": "Decr. INR", "detail": "เร่งการทำลาย Warfarin (CYP Inducer) ทำให้ INR ต่ำลง ต้องติดตามและเพิ่มขนาดยา"},
+    "phenytoin": {"name": "Phenytoin", "risk": "D", "effect": "Variable (Usually Decr. INR)", "detail": "ช่วงแรกอาจทำให้ INR สูง แต่ระยะยาวจะเร่งการทำลายยา ทำให้ INR ต่ำลงมาก"},
+    "phenobarbital": {"name": "Phenobarbital", "risk": "D", "effect": "Decr. INR", "detail": "เร่งเอนไซม์ตับ ทำให้ยา Warfarin ถูกทำลายเร็วขึ้น"},
+    "valproic acid": {"name": "Valproic Acid", "risk": "D", "effect": "Incr. INR / Bleeding", "detail": "แย่งจับโปรตีนในเลือดและอาจลดเกล็ดเลือด ทำให้เสี่ยงเลือดออก"},
+    "cimetidine": {"name": "Cimetidine", "risk": "D", "effect": "Incr. INR", "detail": "ยาลดกรดที่ยับยั้งเอนไซม์ CYP อย่างแรง แนะนำให้เปลี่ยนไปใช้ Famotidine หรือ PPIs แทน"},
+    "capecitabine": {"name": "Capecitabine", "risk": "D", "effect": "Incr. INR (Severe)", "detail": "ยารักษามะเร็ง ทำให้ INR พุ่งสูงรุนแรงถึงขั้นตกเลือดได้"},
+    "fluorouracil": {"name": "Fluorouracil (5-FU)", "risk": "D", "effect": "Incr. INR", "detail": "เพิ่มฤทธิ์ Warfarin อย่างมีนัยสำคัญ"},
+
+    # 🟡 --- Category C (Monitor - ใช้ร่วมกันได้แต่ต้องเฝ้าระวัง) ---
+    "aspirin": {"name": "Aspirin", "risk": "C", "effect": "Bleeding Risk", "detail": "ต้านเกล็ดเลือด เพิ่มความเสี่ยงเลือดออกในทางเดินอาหาร (INR อาจไม่เปลี่ยน)"},
+    "ibuprofen": {"name": "Ibuprofen", "risk": "C", "effect": "Bleeding Risk", "detail": "NSAIDs เพิ่มความเสี่ยงเลือดออกและแผลในกระเพาะ"},
     "naproxen": {"name": "Naproxen", "risk": "C", "effect": "Bleeding Risk", "detail": "NSAIDs เพิ่มความเสี่ยงเลือดออก"},
-    "omeprazole": {"name": "Omeprazole", "risk": "C", "effect": "Variable", "detail": "ผลต่อ INR ไม่แน่นอน ควรติดตามผล"},
-    "paracetamol": {"name": "Paracetamol", "risk": "C", "effect": "Poss. Incr. INR", "detail": "หากทาน >2g/วัน (4 เม็ด) ต่อเนื่องหลายวัน อาจเพิ่ม INR ได้"},
-    "simvastatin": {"name": "Simvastatin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจเพิ่ม INR เล็กน้อย ควรติดตามผล"},
+    "diclofenac": {"name": "Diclofenac", "risk": "C", "effect": "Bleeding Risk", "detail": "NSAIDs เพิ่มความเสี่ยงเลือดออก"},
+    "celecoxib": {"name": "Celecoxib", "risk": "C", "effect": "Bleeding Risk", "detail": "NSAIDs แม้ระคายกระเพาะน้อยกว่า แต่ก็ยังเพิ่มความเสี่ยงเลือดออก"},
+    "etoricoxib": {"name": "Etoricoxib", "risk": "C", "effect": "Bleeding Risk", "detail": "NSAIDs เพิ่มความเสี่ยงเลือดออก"},
+    "meloxicam": {"name": "Meloxicam", "risk": "C", "effect": "Bleeding Risk", "detail": "NSAIDs เพิ่มความเสี่ยงเลือดออก"},
+    "mefenamic": {"name": "Mefenamic Acid", "risk": "C", "effect": "Bleeding Risk", "detail": "NSAIDs เพิ่มความเสี่ยงเลือดออก"},
+    "paracetamol": {"name": "Paracetamol", "risk": "C", "effect": "Poss. Incr. INR", "detail": "ทานแก้ปวดทั่วไปปลอดภัย แต่หากทาน >2g/วัน ต่อเนื่องหลายวัน อาจทำให้ INR สูงได้"},
     "tramadol": {"name": "Tramadol", "risk": "C", "effect": "Poss. Incr. INR", "detail": "มีรายงานการเพิ่ม INR ในผู้ป่วยบางราย"},
-    "amlodipine": {"name": "Amlodipine", "risk": "B", "effect": "No Action", "detail": "ไม่พบปฏิกิริยาที่มีนัยสำคัญทางคลินิก (ปลอดภัย)"},
-    "digoxin": {"name": "Digoxin", "risk": "B", "effect": "No Action", "detail": "ปลอดภัยเมื่อใช้ร่วมกัน"},
+    "amoxicillin": {"name": "Amoxicillin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจเพิ่ม INR ในบางราย (ฆ่าแบคทีเรียที่สร้าง Vit K ในลำไส้)"},
+    "augmentin": {"name": "Amoxicillin/Clavulanate (Augmentin)", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจทำให้ INR สูงขึ้นได้ ควรติดตามผล"},
+    "azithromycin": {"name": "Azithromycin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "ยาฆ่าเชื้อกลุ่ม Macrolide ที่กวน Warfarin น้อยกว่า Clarithromycin แต่ก็ควรติดตาม INR"},
+    "ciprofloxacin": {"name": "Ciprofloxacin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจยับยั้งการทำลาย Warfarin ควรติดตาม INR ช่วง 3-5 วันแรก"},
+    "levofloxacin": {"name": "Levofloxacin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "กลุ่ม Quinolone อาจทำให้ INR สูงขึ้นได้"},
+    "norfloxacin": {"name": "Norfloxacin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "กลุ่ม Quinolone อาจทำให้ INR สูงขึ้นได้"},
+    "clindamycin": {"name": "Clindamycin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "เปลี่ยนแปลงแบคทีเรียในลำไส้ อาจมีผลต่อ INR"},
+    "doxycycline": {"name": "Doxycycline", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจมีผลเพิ่ม INR ควรเฝ้าระวัง"},
+    "cephalexin": {"name": "Cephalexin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจเพิ่ม INR เล็กน้อย"},
+    "fluoxetine": {"name": "Fluoxetine", "risk": "C", "effect": "Bleeding Risk & Incr. INR", "detail": "ยับยั้งการเกาะกลุ่มของเกล็ดเลือด และอาจยับยั้ง CYP ทำให้ INR สูง"},
+    "sertraline": {"name": "Sertraline", "risk": "C", "effect": "Bleeding Risk", "detail": "เพิ่มความเสี่ยงเลือดออก (ผลจาก Serotonin ต่อเกล็ดเลือด)"},
+    "escitalopram": {"name": "Escitalopram", "risk": "C", "effect": "Bleeding Risk", "detail": "เพิ่มความเสี่ยงเลือดออก"},
+    "venlafaxine": {"name": "Venlafaxine", "risk": "C", "effect": "Bleeding Risk", "detail": "กลุ่ม SNRI เพิ่มความเสี่ยงเลือดออก"},
+    "duloxetine": {"name": "Duloxetine", "risk": "C", "effect": "Bleeding Risk", "detail": "กลุ่ม SNRI เพิ่มความเสี่ยงเลือดออก"},
+    "omeprazole": {"name": "Omeprazole", "risk": "C", "effect": "Variable", "detail": "ยับยั้ง CYP2C19 อาจทำให้ INR สูงขึ้นในผู้ป่วยบางราย (แนะนำ Pantoprazole แทน)"},
+    "esomeprazole": {"name": "Esomeprazole", "risk": "C", "effect": "Variable", "detail": "มีผลยับยั้งเอนไซม์ตับเล็กน้อย ควรติดตาม INR"},
+    "simvastatin": {"name": "Simvastatin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจเพิ่มฤทธิ์ Warfarin แนะนำ Atorvastatin จะปลอดภัยกว่า"},
+    "rosuvastatin": {"name": "Rosuvastatin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจเพิ่ม INR ได้เล็กน้อยถึงปานกลาง"},
+    "allopurinol": {"name": "Allopurinol", "risk": "C", "effect": "Poss. Incr. INR", "detail": "ยาลดกรดยูริค อาจยับยั้งการทำลาย Warfarin ได้"},
+    "clopidogrel": {"name": "Clopidogrel", "risk": "C", "effect": "Bleeding Risk", "detail": "ยาต้านเกล็ดเลือด ใช้ร่วมกันได้ตามแพทย์สั่งแต่เพิ่มความเสี่ยงเลือดออกสูง"},
+    "levothyroxine": {"name": "Levothyroxine", "risk": "C", "effect": "Incr. INR", "detail": "ยาฮอร์โมนไทรอยด์ อาจเร่งการสลาย Clotting factors ทำให้ INR สูงขึ้น"},
+
+    # 🔵 --- Category B (No Action Needed - ใช้ร่วมกันได้ ไม่ต้องเปลี่ยนยา) ---
+    "diltiazem": {"name": "Diltiazem", "risk": "B", "effect": "No Action", "detail": "ยาควบคุมการเต้นหัวใจ ปลอดภัยเมื่อใช้ร่วมกัน"},
+    "verapamil": {"name": "Verapamil", "risk": "B", "effect": "No Action", "detail": "ปลอดภัยเมื่อใช้ร่วมกัน"},
+    "amlodipine": {"name": "Amlodipine", "risk": "B", "effect": "No Action", "detail": "ยาลดความดัน ปลอดภัย"},
+    "digoxin": {"name": "Digoxin", "risk": "B", "effect": "No Action", "detail": "ปลอดภัยเมื่อใช้ร่วมกัน (แต่ต้องตามระดับ Digoxin ในเลือดปกติ)"},
     "furosemide": {"name": "Furosemide", "risk": "B", "effect": "No Action", "detail": "ยาขับปัสสาวะ ปลอดภัยเมื่อใช้ร่วมกัน"},
-    "hydrochlorothiazide": {"name": "Hydrochlorothiazide", "risk": "B", "effect": "No Action", "detail": "ยาขับปัสสาวะ ปลอดภัย"},
-    "pantoprazole": {"name": "Pantoprazole", "risk": "B", "effect": "No Action", "detail": "ยาลดกรดที่ปลอดภัยกว่า Omeprazole เล็กน้อย"},
-    "propranolol": {"name": "Propranolol", "risk": "B", "effect": "No Action", "detail": "ปลอดภัยเมื่อใช้ร่วมกัน"},
-    "spironolactone": {"name": "Spironolactone", "risk": "B", "effect": "No Action", "detail": "ปลอดภัยเมื่อใช้ร่วมกัน"},
+    "hydrochlorothiazide": {"name": "Hydrochlorothiazide (HCTZ)", "risk": "B", "effect": "No Action", "detail": "ยาขับปัสสาวะ ปลอดภัย"},
+    "spironolactone": {"name": "Spironolactone", "risk": "B", "effect": "No Action", "detail": "ยาขับปัสสาวะ ปลอดภัย"},
+    "propranolol": {"name": "Propranolol", "risk": "B", "effect": "No Action", "detail": "ยาลดความดัน/คุมหัวใจ ปลอดภัย"},
+    "pantoprazole": {"name": "Pantoprazole", "risk": "B", "effect": "No Action", "detail": "ยาลดกรด PPI ที่มีปฏิกิริยากับยาน้อยที่สุด ปลอดภัย"},
+    "ezetimibe": {"name": "Ezetimibe", "risk": "B", "effect": "No Action", "detail": "ยาลดไขมันในเลือด ปลอดภัยเมื่อใช้ร่วมกัน"},
     "oseltamivir": {"name": "Oseltamivir", "risk": "B", "effect": "No Action", "detail": "ยาต้านไวรัสไข้หวัดใหญ่ ปลอดภัย"},
-    "atorvastatin": {"name": "Atorvastatin", "risk": "A", "effect": "Safe", "detail": "ไม่พบปฏิกิริยาระหว่างยา (ปลอดภัยที่สุดในกลุ่ม Statin)"}
+
+    # 🟢 --- Category A (Safe - ปลอดภัย ไม่มีปฏิกิริยา) ---
+    "metformin": {"name": "Metformin", "risk": "A", "effect": "Safe", "detail": "ไม่พบปฏิกิริยาระหว่างยา ปลอดภัย"},
+    "glipizide": {"name": "Glipizide", "risk": "A", "effect": "Safe", "detail": "ไม่พบปฏิกิริยาระหว่างยา ปลอดภัย"},
+    "gliclazide": {"name": "Gliclazide", "risk": "A", "effect": "Safe", "detail": "ไม่พบปฏิกิริยาระหว่างยา ปลอดภัย"},
+    "sitagliptin": {"name": "Sitagliptin", "risk": "A", "effect": "Safe", "detail": "ยาเบาหวานกลุ่ม DPP-4 ปลอดภัย"},
+    "empagliflozin": {"name": "Empagliflozin", "risk": "A", "effect": "Safe", "detail": "ยาเบาหวานกลุ่ม SGLT2 ปลอดภัย"},
+    "insulin": {"name": "Insulin (ทุกชนิด)", "risk": "A", "effect": "Safe", "detail": "ยาฉีดเบาหวาน ปลอดภัย"},
+    "losartan": {"name": "Losartan", "risk": "A", "effect": "Safe", "detail": "ไม่พบปฏิกิริยาระหว่างยา ปลอดภัย"},
+    "valsartan": {"name": "Valsartan", "risk": "A", "effect": "Safe", "detail": "ไม่พบปฏิกิริยาระหว่างยา ปลอดภัย"},
+    "enalapril": {"name": "Enalapril", "risk": "A", "effect": "Safe", "detail": "ไม่พบปฏิกิริยาระหว่างยา ปลอดภัย"},
+    "lisinopril": {"name": "Lisinopril", "risk": "A", "effect": "Safe", "detail": "ไม่พบปฏิกิริยาระหว่างยา ปลอดภัย"},
+    "atenolol": {"name": "Atenolol", "risk": "A", "effect": "Safe", "detail": "ยาเบต้าบล็อกเกอร์ ปลอดภัย"},
+    "metoprolol": {"name": "Metoprolol", "risk": "A", "effect": "Safe", "detail": "ยาเบต้าบล็อกเกอร์ ปลอดภัย"},
+    "bisoprolol": {"name": "Bisoprolol", "risk": "A", "effect": "Safe", "detail": "ยาเบต้าบล็อกเกอร์ ปลอดภัย"},
+    "cetirizine": {"name": "Cetirizine", "risk": "A", "effect": "Safe", "detail": "ไม่มีผลต่อค่า INR ปลอดภัย"},
+    "loratadine": {"name": "Loratadine", "risk": "A", "effect": "Safe", "detail": "ไม่มีผลต่อค่า INR ปลอดภัย"},
+    "fexofenadine": {"name": "Fexofenadine", "risk": "A", "effect": "Safe", "detail": "ไม่มีผลต่อค่า INR ปลอดภัย"},
+    "chlorpheniramine": {"name": "Chlorpheniramine (CPM)", "risk": "A", "effect": "Safe", "detail": "ยาแก้แพ้รุ่นเก่า ปลอดภัย"},
+    "atorvastatin": {"name": "Atorvastatin", "risk": "A", "effect": "Safe", "detail": "ไม่พบปฏิกิริยาระหว่างยา (ปลอดภัยที่สุดในกลุ่ม Statin เมื่อใช้คู่กับ Warfarin)"},
+    "pravastatin": {"name": "Pravastatin", "risk": "A", "effect": "Safe", "detail": "กลุ่ม Statin ที่ปลอดภัย ไม่มีผลต่อ Warfarin"},
+    "pitavastatin": {"name": "Pitavastatin", "risk": "A", "effect": "Safe", "detail": "กลุ่ม Statin ปลอดภัย"},
+    "famotidine": {"name": "Famotidine", "risk": "A", "effect": "Safe", "detail": "ยาลดกรดกลุ่ม H2-blocker ที่ปลอดภัย ไม่มีผลต่อ Warfarin"},
+    "domperidone": {"name": "Domperidone", "risk": "A", "effect": "Safe", "detail": "ยาแก้คลื่นไส้อาเจียน ปลอดภัย"},
+    "metoclopramide": {"name": "Metoclopramide", "risk": "A", "effect": "Safe", "detail": "ยาแก้คลื่นไส้อาเจียน ปลอดภัย"},
+    "gabapentin": {"name": "Gabapentin", "risk": "A", "effect": "Safe", "detail": "ยาแก้ปวดปลายประสาท ปลอดภัย"},
+    "pregabalin": {"name": "Pregabalin", "risk": "A", "effect": "Safe", "detail": "ยาแก้ปวดปลายประสาท ปลอดภัย"},
+    "salbutamol": {"name": "Salbutamol", "risk": "A", "effect": "Safe", "detail": "ยาขยายหลอดลม ปลอดภัย"},
+    "montelukast": {"name": "Montelukast", "risk": "A", "effect": "Safe", "detail": "ยาภูมิแพ้หอบหืด ปลอดภัย"},
+    "budesonide": {"name": "Budesonide", "risk": "A", "effect": "Safe", "detail": "ยาสเตียรอยด์สูดดม ปลอดภัย ไม่มีผลต่อระบบเลือด"}
 }
 
 RISK_COLOR_MAP = {"X": "#D32F2F", "D": "#EF6C00", "C": "#FBC02D", "B": "#0288D1", "A": "#388E3C"}
 
 # ==========================================
-# 🌐 LIFF 1: Calculator HTML (ไม่มี GPS)
+# 🌐 LIFF 1: Calculator HTML
 # ==========================================
 LIFF_CALC_HTML = """
 <!DOCTYPE html>
@@ -209,7 +274,7 @@ LIFF_CALC_HTML = """
 """
 
 # ==========================================
-# 🌐 LIFF 2: Interaction Checker HTML (ไม่มี GPS)
+# 🌐 LIFF 2: Interaction Checker HTML
 # ==========================================
 LIFF_INTERACT_HTML = """
 <!DOCTYPE html>
@@ -366,226 +431,4 @@ def build_analysis_flex(results):
                 body_contents.append(TextComponent(text="การจัดการ (Management):", size="xs", color="#D32F2F", margin="md", weight="bold"))
                 body_contents.append(TextComponent(text=item['management'], size="sm", wrap=True, color="#333333"))
             if 'reference' in item and item['reference']:
-                body_contents.append(BoxComponent(layout="vertical", margin="md", backgroundColor="#f0f0f0", height="1px"))
-                body_contents.append(TextComponent(text="อ้างอิง:", size="xxs", color="#888888", margin="sm"))
-                body_contents.append(TextComponent(text=item['reference'], size="xxs", wrap=True, color="#aaaaaa"))
-            if 'pdf_url' in item and item['pdf_url']:
-                body_contents.append(ButtonComponent(style="secondary", height="sm", margin="md", color="#e3f2fd", action=URIAction(label="📄 เปิดอ่านเอกสารเต็ม", uri=item['pdf_url'])))
-
-        bubbles.append(BubbleContainer(body=BoxComponent(layout="vertical", contents=body_contents)))
-    
-    bubbles.append(BubbleContainer(body=BoxComponent(layout="vertical", contents=[
-        TextComponent(text="📚 แหล่งอ้างอิงหลัก:", weight="bold", size="sm", color="#1E90FF"),
-        TextComponent(text="UpToDate® Lexidrug™ (Warfarin Interactions)", size="xs", color="#666666", wrap=True, margin="sm"),
-        TextComponent(text="*ข้อมูลเพื่อการศึกษา โปรดปรึกษาแพทย์ก่อนปรับยา", size="xxs", color="#aaaaaa", wrap=True, margin="md")
-    ])))
-    return FlexSendMessage(alt_text="ผลตรวจสอบยาตีกัน", contents=CarouselContainer(contents=bubbles))
-
-def get_dose_adjustment_range(inr, current_dose):
-    if inr is None: return current_dose, current_dose, "คงขนาดยาเดิม (ไม่ได้ระบุ INR / ไม่ได้ตรวจ)", 0
-    if inr < 1.5: return current_dose*1.1, current_dose*1.2, "เพิ่มขนาดยา 10-20% (INR ต่ำกว่าเป้าหมาย)", 0
-    elif 1.5 <= inr <= 1.9: return current_dose*1.05, current_dose*1.1, "เพิ่มขนาดยา 5-10% (INR ต่ำกว่าเป้าหมายเล็กน้อย)", 0
-    elif 2.0 <= inr <= 3.0: return current_dose*0.98, current_dose*1.02, "คงขนาดยาเดิม (Target Achieved)", 0
-    elif 3.1 <= inr <= 3.9: return current_dose*0.90, current_dose*0.95, "ลดขนาดยา 5-10% (INR สูงกว่าเป้าหมายเล็กน้อย)", 0
-    elif 4.0 <= inr <= 4.9: return current_dose*0.895, current_dose*0.905, "⚠️ งดยา 1 วัน (Hold 1 day) แล้วลดขนาดยาลง 10%", 1
-    elif 5.0 <= inr <= 8.9: return current_dose*0.84, current_dose*0.86, "⛔️ อันตราย: งดยา 1-2 วัน และควรทาน Vit K1", 2
-    elif inr >= 9.0: return None, None, "🚨 EMERGENCY: หยุดยาและรีบพบแพทย์ทันที เพื่อรับ Vit K1", 7
-    return current_dose, current_dose, "ปรึกษาแพทย์", 0
-
-def get_single_drug_daily_options(available_tabs):
-    options = {0: (0, 0)}
-    for tab in available_tabs:
-        for multiplier in [0.5, 1.0, 1.5, 2.0]:
-            dose_val = tab * multiplier
-            if dose_val not in options: options[dose_val] = (tab, multiplier)     
-    return options
-
-def find_best_schedule_in_range(min_weekly, max_weekly, available_tabs):
-    daily_opts_map = get_single_drug_daily_options(available_tabs)
-    possible_doses = sorted(list(daily_opts_map.keys()))
-    candidates = []
-    for dose_a, dose_b, dose_c in itertools.combinations_with_replacement(possible_doses, 3):
-        active_doses = [d for d in [dose_a, dose_b, dose_c] if d > 0]
-        if active_doses and (max(active_doses) - min(active_doses)) > 2.0: continue 
-        for count_a in range(8):
-            for count_b in range(8 - count_a):
-                count_c = 7 - count_a - count_b
-                weekly_sum = (dose_a * count_a) + (dose_b * count_b) + (dose_c * count_c)
-                if min_weekly <= weekly_sum <= max_weekly:
-                    active_days = 0
-                    if dose_a > 0: active_days += count_a
-                    if dose_b > 0: active_days += count_b
-                    if dose_c > 0: active_days += count_c
-                    if active_days >= 5:
-                        schedule_list = [dose_a]*count_a + [dose_b]*count_b + [dose_c]*count_c
-                        final_active_doses = [d for d in schedule_list if d > 0]
-                        if final_active_doses and (max(final_active_doses) - min(final_active_doses)) > 2.0: continue
-                        pill_summary = {}
-                        for d in schedule_list:
-                            if d > 0:
-                                t_size, t_count = daily_opts_map.get(d, (0,0))
-                                pill_summary[t_size] = pill_summary.get(t_size, 0) + t_count
-                        candidates.append({"schedule": schedule_list, "sum": weekly_sum, "unique_count": len(set(schedule_list)), "pill_summary": pill_summary, "active_days": active_days})
-    if not candidates: return None, 0, {}
-    target_mid = (min_weekly + max_weekly) / 2
-    candidates.sort(key=lambda x: (-x['active_days'], abs(x['sum'] - target_mid), x['unique_count']))
-    best_candidate = candidates[0]
-    return best_candidate['schedule'], best_candidate['sum'], best_candidate['pill_summary']
-
-def build_strict_schedule_flex(final_dose, schedule_list, available_tabs, pill_summary, inr=None, previous_dose=None, adjustment_message=None):
-    daily_opts_map = get_single_drug_daily_options(available_tabs)
-    days = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา']
-    items = []
-    header_color = "#FF3333" if "งด" in adjustment_message else "#00B900"
-    
-    info_box = [TextComponent(text=f"🔹 ขนาดยาเดิม: {previous_dose} mg/สัปดาห์", size="sm", color="#555555")]
-    if inr is not None:
-        info_box.insert(0, TextComponent(text=f"🔹 INR: {inr}", size="sm", color="#555555"))
-        info_box.append(TextComponent(text=f"🔹 ใหม่: {final_dose:.1f} mg/สัปดาห์", size="sm", weight="bold", color="#1DB446"))
-    else: info_box.insert(0, TextComponent(text=f"🔹 INR: ไม่ระบุ", size="sm", color="#aaaaaa"))
-    
-    info_box.append(TextComponent(text=f"📝 {adjustment_message}", size="sm", wrap=True, margin="sm", color="#FF0000" if "งด" in adjustment_message else "#aaaaaa"))
-    items.extend(info_box)
-    items.append(BoxComponent(layout="vertical", margin="md", backgroundColor="#e0e0e0", height="1px"))
-
-    for i in range(7):
-        dose = schedule_list[i]
-        if dose == 0: text_detail, text_color, bg_color = "❌ งดยา", "#ff0000", "#ffeeee"
-        else:
-            tab_size, pill_count = daily_opts_map.get(dose, (0, 0))
-            pill_str = "ครึ่ง" if pill_count == 0.5 else f"{pill_count:.1f}"
-            if pill_count.is_integer(): pill_str = str(int(pill_count))
-            text_detail, text_color, bg_color = f"{dose} mg ({tab_size}mg x {pill_str} เม็ด)", "#000000", "#ffffff"
-        items.append(BoxComponent(layout="horizontal", backgroundColor=bg_color, contents=[TextComponent(text=days[i], weight="bold", flex=1, color="#333333"), TextComponent(text=text_detail, size="sm", flex=4, color=text_color)], paddingAll="xs", cornerRadius="sm", margin="xs"))
-
-    summary_lines = [f"• ยา {k} mg: รวม {v} เม็ด/สัปดาห์" for k, v in sorted(pill_summary.items())]
-    items.append(BoxComponent(layout="vertical", margin="md", backgroundColor="#e0e0e0", height="1px"))
-    items.append(TextComponent(text="สรุปจำนวนยาต่อสัปดาห์", weight="bold", size="sm", margin="md"))
-    items.append(TextComponent(text="\n".join(summary_lines) if summary_lines else "หยุดยาทั้งสัปดาห์", wrap=True, size="sm", color="#666666", margin="sm"))
-    items.append(BoxComponent(layout="vertical", margin="md", backgroundColor="#e0e0e0", height="1px"))
-    items.append(TextComponent(text="ต้องการคำนวณจำนวนเม็ดทั้งหมด?", size="xs", color="#aaaaaa", align="center", margin="sm"))
-    items.append(BoxComponent(layout="horizontal", margin="sm", contents=[{"type": "button", "action": DatetimePickerAction(label="📅 เลือกวันนัดหมาย", data="action=select_date", mode="date"), "style": "primary", "color": "#1E90FF", "height": "sm"}]))
-    
-    if inr is not None:
-        items.append(BoxComponent(layout="vertical", margin="md", backgroundColor="#e0e0e0", height="1px"))
-        if TABLE_IMAGE_URL: items.append(ImageComponent(url=TABLE_IMAGE_URL, size="full", aspectRatio="1.6:1", aspectMode="cover", margin="md", action=URIAction(uri=TABLE_PDF_URL)))
-        items.append(TextComponent(text="อ้างอิงจากสมาคมแพทย์โรคหัวใจแห่งประเทศไทย", wrap=True, size="xxs", color="#aaaaaa", margin="sm", align="center"))
-    
-    return FlexSendMessage(alt_text="ตารางยา Warfarin", contents=BubbleContainer(header=BoxComponent(layout="vertical", backgroundColor=header_color, contents=[TextComponent(text="ตารางรับประทานยา", weight="bold", size="lg", color="#FFFFFF", align="center")]), body=BoxComponent(layout="vertical", contents=items)))
-
-@app.route("/callback", methods=['POST'])
-def callback():
-    signature = request.headers['X-Line-Signature']
-    body = request.get_data(as_text=True)
-    try: handler.handle(body, signature)
-    except InvalidSignatureError: abort(400)
-    return 'OK'
-
-@handler.add(MessageEvent, message=TextMessage)
-def handle_message(event):
-    text = event.message.text.strip()
-    user_id = event.source.user_id
-
-    if text.lower() == "ping":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🏓 Pong! \nเวลา: {datetime.now().strftime('%H:%M:%S')}"))
-        return
-
-    if text in ["เช็กยาตีกัน", "เช็กยา"]:
-        flex = FlexSendMessage(alt_text="ค้นหายา", contents=BubbleContainer(body=BoxComponent(layout="vertical", contents=[TextComponent(text="🔍 เช็กยาตีกัน", weight="bold", size="lg", color="#1E90FF", align="center"), TextComponent(text="พิมพ์ชื่อยาหลายตัวพร้อมกันได้", wrap=True, size="xs", color="#aaaaaa", align="center", margin="sm"), ButtonComponent(style="primary", color="#00C851", height="sm", margin="md", action=URIAction(label="เปิดระบบค้นหา", uri=f"https://liff.line.me/{LIFF_ID_INTERACTION}"))])))
-        line_bot_api.reply_message(event.reply_token, flex)
-        return
-        
-    if text == "ช่วยจัดยา warfarin":
-        flex = FlexSendMessage(alt_text="เปิดหน้าจัดยา", contents=BubbleContainer(body=BoxComponent(layout="vertical", contents=[TextComponent(text="💊 ระบบช่วยจัดยา", weight="bold", size="lg", color="#1E90FF", align="center"), TextComponent(text="กดปุ่มด้านล่างเพื่อเลือกยาและกรอกข้อมูล", wrap=True, size="xs", color="#aaaaaa", align="center", margin="sm"), ButtonComponent(style="primary", color="#00C851", height="sm", margin="md", action=URIAction(label="กรอกข้อมูลจัดยา", uri=f"https://liff.line.me/{LIFF_ID_CALCULATOR}"))])))
-        line_bot_api.reply_message(event.reply_token, flex)
-        return
-
-    if text.startswith("🔍 ตรวจสอบยา:"):
-        drugs_str = text.replace("🔍 ตรวจสอบยา:", "").strip()
-        log_to_sheets("เช็กยาตีกัน", f"ค้นหา: {drugs_str}", "No GPS")
-        
-        analysis_results = analyze_drug_list(drugs_str)
-        line_bot_api.reply_message(event.reply_token, build_analysis_flex(analysis_results))
-        return
-    
-    is_eng = re.match(r'^[a-zA-Z\s,]+$', text)
-    if text.startswith("เช็กยา ") or is_eng:
-        keyword = text.replace("เช็กยา ", "").strip()
-        log_to_sheets("เช็กยาตีกัน (พิมพ์เอง)", f"ค้นหา: {keyword}", "No GPS")
-        results = analyze_drug_list(keyword)
-        line_bot_api.reply_message(event.reply_token, build_analysis_flex(results))
-        return
-
-    if text.startswith("📝 ข้อมูลจัดยา:"):
-        try:
-            parts = text.replace("📝 ข้อมูลจัดยา:", "").strip().split("|")
-            pills_str = parts[0].strip()
-            dose_str = parts[1].strip()
-            inr_str = parts[2].strip()
-            
-            available_tabs = [float(x) for x in pills_str.split(",")]
-            weekly_dose = float(dose_str)
-            inr = None if (inr_str == "Unknown" or inr_str == "ไม่มี/ไม่ทราบ INR") else float(inr_str)
-
-            min_t, max_t, msg, skip = get_dose_adjustment_range(inr, weekly_dose)
-            log_to_sheets("คำนวณยา", f"Dose เดิม: {weekly_dose}mg | INR: {inr_str} | ยาที่มี: {pills_str}mg | แนะนำ: {msg}", "No GPS")
-
-            if min_t is None and inr is not None:
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
-                return
-
-            schedule, final, summary = find_best_schedule_in_range(min_t, max_t, available_tabs)
-            if schedule:
-                if skip: 
-                    for i in range(min(skip, 7)): schedule[i] = 0
-                non_zeros = sorted([x for x in schedule if x > 0], reverse=True)
-                zeros = [x for x in schedule if x == 0]
-                schedule = non_zeros + zeros
-
-                user_sessions[user_id] = {'pill_summary': summary, 'timestamp': datetime.now()}
-                line_bot_api.reply_message(event.reply_token, build_strict_schedule_flex(final, schedule, available_tabs, summary, inr, weekly_dose, msg))
-            else:
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"⚠️ คำนวณช่วง {min_t:.1f}-{max_t:.1f} mg แต่ไม่สามารถจัดยาที่มีให้ลงล็อกได้"))
-        except Exception as e:
-            print(f"Error logic: {e}")
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ เกิดข้อผิดพลาดในการอ่านข้อมูล"))
-        return
-
-@handler.add(PostbackEvent)
-def handle_postback(event):
-    user_id = event.source.user_id
-    data = event.postback.data
-    if data == "action=select_date":
-        if user_id not in user_sessions or 'pill_summary' not in user_sessions[user_id]:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ ข้อมูลหมดอายุ กรุณาเริ่มจัดยาใหม่"))
-            return
-        selected_date = datetime.strptime(event.postback.params['date'], '%Y-%m-%d').date()
-        today = date.today()
-        days_diff = (selected_date - today).days
-        if days_diff <= 0:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ กรุณาเลือกวันในอนาคต"))
-            return
-        weeks_ceiling = math.ceil(days_diff / 7)
-        pill_summary = user_sessions[user_id]['pill_summary']
-        result_lines = []
-        for strength, count_per_week in pill_summary.items():
-            total_pills = count_per_week * weeks_ceiling
-            result_lines.append(f"💊 ยา {strength} mg: {count_per_week:g}x{weeks_ceiling} = {total_pills:.0f} เม็ด")
-        msg = (f"📅 **สรุปยอดเบิกยา**\nนัด: {selected_date.strftime('%d/%m/%Y')} ({days_diff} วัน)\nคิดเป็น: {weeks_ceiling} สัปดาห์ (ปัดขึ้น)\n-----------------\n{chr(10).join(result_lines)}")
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
-
-# ⏰ ระบบปลุกเซิร์ฟเวอร์อัตโนมัติ (Keep-alive)
-def keep_alive():
-    url = "https://warfy-bot.onrender.com/"
-    while True:
-        try:
-            requests.get(url)
-            print("⏰ Ping! ปลุกเซิฟเวอร์สำเร็จ")
-        except Exception as e:
-            print("⚠️ Ping Failed:", e)
-        time.sleep(300) # ทำงานทุก 5 นาที (300 วินาที)
-
-if __name__ == "__main__":
-    # สั่งให้ระบบปลุกทำงานเบื้องหลังทันทีที่เปิดแอป
-    threading.Thread(target=keep_alive, daemon=True).start()
-    app.run(port=5000)
+                body_contents.append(BoxComponent(layout="vertical", margin="md", backgroundColor="#f0f0f0", height="1
