@@ -47,103 +47,66 @@ user_sessions = {}
 # ==========================================
 # 📊 ตั้งค่า Google Sheets
 # ==========================================
-sheet = None
+sheet_logs = None
+sheet_di = None
+INTERACTION_DB = {} # ตัวแปรเก็บฐานข้อมูลยา
+
 if GSHEETS_READY:
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     try:
         creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
         gc = gspread.authorize(creds)
-        sheet = gc.open("Warfy_Logs").sheet1
+        wb = gc.open("Warfy_Logs")
+        sheet_logs = wb.sheet1 # ชีตแรกสำหรับเก็บสถิติ
+        sheet_di = wb.worksheet("DI database") # ชีตใหม่สำหรับดึงข้อมูลยา
         print("✅ Google Sheets Connected Successfully!")
     except Exception as e:
         print(f"⚠️ Google Sheets Connection Failed: {e}")
 
+# 🔄 ฟังก์ชันสำหรับโหลดข้อมูลยาจาก Google Sheets
+def load_drug_db():
+    global INTERACTION_DB
+    if sheet_di is None:
+        print("⚠️ ไม่สามารถโหลดข้อมูลยาได้: ยังไม่ได้เชื่อมต่อ Google Sheets")
+        return False
+    try:
+        records = sheet_di.get_all_records()
+        new_db = {}
+        for row in records:
+            keyword = str(row.get('Keyword', '')).strip().lower()
+            if not keyword: continue # ข้ามบรรทัดที่ว่าง
+            new_db[keyword] = {
+                "name": str(row.get('Name', '')),
+                "risk": str(row.get('Risk', '')),
+                "effect": str(row.get('Effect', '')),
+                "detail": str(row.get('Detail', '')),
+                "management": str(row.get('Management', '')),
+                "reference": str(row.get('Reference', '')),
+                "pdf_url": str(row.get('PDF_URL', ''))
+            }
+        INTERACTION_DB = new_db
+        print(f"✅ โหลดข้อมูลยาเสร็จสิ้น! พบยาทั้งหมด {len(INTERACTION_DB)} รายการ")
+        return True
+    except Exception as e:
+        print(f"⚠️ เกิดข้อผิดพลาดในการโหลดข้อมูลยา: {e}")
+        return False
+
+# โหลดฐานข้อมูลยาทันทีที่เปิดเซิร์ฟเวอร์
+load_drug_db()
+
 def log_to_sheets(feature, details, location="No GPS"):
-    if sheet is None: return 
+    if sheet_logs is None: return 
     try:
         timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
         row_data = [timestamp, feature, details, location]
-        sheet.append_row(row_data)
+        sheet_logs.append_row(row_data)
     except Exception as e:
         print(f"⚠️ Error logging to sheets: {e}")
-
-# ==========================================
-# 💊 ฐานข้อมูลยา (อ้างอิงจาก UpToDate® Lexidrug™ ตามไฟล์ PDF)
-# ==========================================
-INTERACTION_DB = {
-    # 🔴 --- Category X (Avoid combination) ---
-    "abciximab": {"name": "Abciximab", "risk": "X", "effect": "Avoid combination", "detail": "ห้ามใช้ร่วมกัน", "management": "หลีกเลี่ยงการใช้ร่วมกันเด็ดขาด", "reference": "UpToDate® Lexidrug™", "pdf_url": "https://drive.google.com/file/d/15V88vAokwnIgx9qYnUNYVBgWsXz-mbaP/view?usp=drive_link"},
-    "alteplase": {"name": "Alteplase", "risk": "X", "effect": "Avoid combination", "detail": "ห้ามใช้ร่วมกัน", "management": "หลีกเลี่ยงการใช้ร่วมกันเด็ดขาด", "reference": "UpToDate® Lexidrug™", "pdf_url": "https://drive.google.com/file/d/1j_1wTVE-sbTiMg3ZbZgRoUmlP0SXAjRj/view?usp=drive_link"},
-    "defibrotide": {"name": "Defibrotide", "risk": "X", "effect": "Avoid combination", "detail": "ห้ามใช้ร่วมกัน", "management": "หลีกเลี่ยงการใช้ร่วมกันเด็ดขาด", "reference": "UpToDate® Lexidrug™", "pdf_url": "https://drive.google.com/file/d/1L-FCZvz2mzhJU3zRzfZOLroBfWrDJVzd/view?usp=drive_link"},
-    "hemin": {"name": "Hemin", "risk": "X", "effect": "Avoid combination", "detail": "ห้ามใช้ร่วมกัน", "management": "หลีกเลี่ยงการใช้ร่วมกันเด็ดขาด", "reference": "UpToDate® Lexidrug™", "pdf_url": "https://drive.google.com/file/d/1kh69ua1CxyM4TrTNPKySL2Ud4R9o0iOq/view?usp=drive_link"},
-    "mifepristone": {"name": "Mifepristone", "risk": "X", "effect": "Avoid combination", "detail": "ห้ามใช้ร่วมกัน (ขึ้นอยู่กับข้อบ่งชี้)", "management": "หลีกเลี่ยงการใช้ร่วมกันเด็ดขาด", "reference": "UpToDate® Lexidrug™", "pdf_url": "https://drive.google.com/file/d/1z-eGMjZapQ54Kd7Q_Xb7gBrDuXNNDk-r/view?usp=drive_link"},
-    "omacetaxine": {"name": "Omacetaxine", "risk": "X", "effect": "Avoid combination", "detail": "ห้ามใช้ร่วมกัน", "management": "หลีกเลี่ยงการใช้ร่วมกันเด็ดขาด", "reference": "UpToDate® Lexidrug™", "pdf_url": "https://drive.google.com/file/d/1K56QeEQzJQB3VU3obQaDrDLwc0nPcd3w/view?usp=drive_link"},
-    "oxatomide": {"name": "Oxatomide", "risk": "X", "effect": "Avoid combination", "detail": "ห้ามใช้ร่วมกัน", "management": "หลีกเลี่ยงการใช้ร่วมกันเด็ดขาด", "reference": "UpToDate® Lexidrug™", "pdf_url": "https://drive.google.com/file/d/1ujGEx2gLE_r2R0nOC5uWg4IGlfnZWG9_/view?usp=drive_link"},
-    "streptokinase": {"name": "Streptokinase", "risk": "X", "effect": "Avoid combination", "detail": "ห้ามใช้ร่วมกัน", "management": "หลีกเลี่ยงการใช้ร่วมกันเด็ดขาด", "reference": "UpToDate® Lexidrug™", "pdf_url": "https://drive.google.com/file/d/1TPEFDyOcZ4wDOfRMgz9zhKt3Du47PVZ2/view?usp=drive_link"},
-    "tenecteplase": {"name": "Tenecteplase", "risk": "X", "effect": "Avoid combination", "detail": "ห้ามใช้ร่วมกัน (ขึ้นอยู่กับข้อบ่งชี้)", "management": "หลีกเลี่ยงการใช้ร่วมกันเด็ดขาด", "reference": "UpToDate® Lexidrug™", "pdf_url": "https://drive.google.com/file/d/1hl535UMybwMHyJ44E5M7sS9BebCPcm9Q/view?usp=drive_link"},
-    "vorapaxar": {"name": "Vorapaxar", "risk": "X", "effect": "Avoid combination", "detail": "ห้ามใช้ร่วมกัน", "management": "หลีกเลี่ยงการใช้ร่วมกันเด็ดขาด", "reference": "UpToDate® Lexidrug™", "pdf_url": "https://drive.google.com/file/d/1rKNzzEMjL-010dv18a77vAksd3edLIC8/view?usp=drive_link"},
-
-    # 🟠 --- Category D (Consider therapy modification) ---
-    "allopurinol": {"name": "Allopurinol", "risk": "D", "effect": "Consider therapy modification", "detail": "พิจารณาปรับเปลี่ยนการรักษา หรือปรับขนาดยา", "reference": "UpToDate® Lexidrug™"},
-    "amiodarone": {"name": "Amiodarone", "risk": "D", "effect": "Consider therapy modification", "detail": "พิจารณาปรับเปลี่ยนการรักษา หรือปรับขนาดยา", "reference": "UpToDate® Lexidrug™"},
-    "carbamazepine": {"name": "Carbamazepine", "risk": "D", "effect": "Consider therapy modification", "detail": "พิจารณาปรับเปลี่ยนการรักษา หรือปรับขนาดยา", "reference": "UpToDate® Lexidrug™"},
-    "cimetidine": {"name": "Cimetidine", "risk": "D", "effect": "Consider therapy modification", "detail": "พิจารณาปรับเปลี่ยนการรักษา หรือปรับขนาดยา", "reference": "UpToDate® Lexidrug™"},
-    "fluconazole": {"name": "Fluconazole", "risk": "D", "effect": "Consider therapy modification", "detail": "พิจารณาปรับเปลี่ยนการรักษา หรือปรับขนาดยา", "reference": "UpToDate® Lexidrug™"},
-    "metronidazole": {"name": "Metronidazole", "risk": "D", "effect": "Consider therapy modification", "detail": "พิจารณาปรับเปลี่ยนการรักษา หรือปรับขนาดยา", "reference": "UpToDate® Lexidrug™"},
-    "miconazole": {"name": "Miconazole", "risk": "D", "effect": "Consider therapy modification", "detail": "พิจารณาปรับเปลี่ยนการรักษา หรือปรับขนาดยา (รวมถึงยาทา)", "reference": "UpToDate® Lexidrug™"},
-    "phenobarbital": {"name": "Phenobarbital", "risk": "D", "effect": "Consider therapy modification", "detail": "พิจารณาปรับเปลี่ยนการรักษา หรือปรับขนาดยา", "reference": "UpToDate® Lexidrug™"},
-    "rifampin": {"name": "Rifampin", "risk": "D", "effect": "Consider therapy modification", "detail": "พิจารณาปรับเปลี่ยนการรักษา หรือปรับขนาดยา", "reference": "UpToDate® Lexidrug™"},
-    "sulfamethoxazole": {"name": "Sulfamethoxazole", "risk": "D", "effect": "Consider therapy modification", "detail": "พิจารณาปรับเปลี่ยนการรักษา หรือปรับขนาดยา", "reference": "UpToDate® Lexidrug™"},
-
-    # 🟡 --- Category C (Monitor therapy) ---
-    "acetaminophen": {"name": "Acetaminophen (Paracetamol)", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามค่า INR (โดยเฉพาะเมื่อใช้ขนาดสูง)", "reference": "UpToDate® Lexidrug™"},
-    "amoxicillin": {"name": "Amoxicillin", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "aspirin": {"name": "Aspirin", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและเฝ้าระวังความเสี่ยงเลือดออก", "reference": "UpToDate® Lexidrug™"},
-    "azithromycin": {"name": "Azithromycin", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "celecoxib": {"name": "Celecoxib", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและเฝ้าระวังความเสี่ยงเลือดออก", "reference": "UpToDate® Lexidrug™"},
-    "cephalexin": {"name": "Cephalexin", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "ciprofloxacin": {"name": "Ciprofloxacin", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "clarithromycin": {"name": "Clarithromycin", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "clopidogrel": {"name": "Clopidogrel", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและเฝ้าระวังความเสี่ยงเลือดออก", "reference": "UpToDate® Lexidrug™"},
-    "diclofenac": {"name": "Diclofenac", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและเฝ้าระวังความเสี่ยงเลือดออก", "reference": "UpToDate® Lexidrug™"},
-    "doxycycline": {"name": "Doxycycline", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "esomeprazole": {"name": "Esomeprazole", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "etoricoxib": {"name": "Etoricoxib", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและเฝ้าระวังความเสี่ยงเลือดออก", "reference": "UpToDate® Lexidrug™"},
-    "ibuprofen": {"name": "Ibuprofen", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและเฝ้าระวังความเสี่ยงเลือดออก", "reference": "UpToDate® Lexidrug™"},
-    "lansoprazole": {"name": "Lansoprazole", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "levofloxacin": {"name": "Levofloxacin", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "levothyroxine": {"name": "Levothyroxine", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "mefenamic": {"name": "Mefenamic Acid", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและเฝ้าระวังความเสี่ยงเลือดออก", "reference": "UpToDate® Lexidrug™"},
-    "meloxicam": {"name": "Meloxicam", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและเฝ้าระวังความเสี่ยงเลือดออก", "reference": "UpToDate® Lexidrug™"},
-    "metformin": {"name": "Metformin", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "naproxen": {"name": "Naproxen", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและเฝ้าระวังความเสี่ยงเลือดออก", "reference": "UpToDate® Lexidrug™"},
-    "omeprazole": {"name": "Omeprazole", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "pravastatin": {"name": "Pravastatin", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "prednisolone": {"name": "Prednisolone", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "rosuvastatin": {"name": "Rosuvastatin", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "simvastatin": {"name": "Simvastatin", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-    "tramadol": {"name": "Tramadol", "risk": "C", "effect": "Monitor therapy", "detail": "ติดตามการรักษาและค่า INR", "reference": "UpToDate® Lexidrug™"},
-
-    # 🔵 --- Category B (No action needed) ---
-    "amlodipine": {"name": "Amlodipine", "risk": "B", "effect": "No action needed", "detail": "ปลอดภัย สามารถใช้ร่วมกันได้", "reference": "UpToDate® Lexidrug™"},
-    "digoxin": {"name": "Digoxin", "risk": "B", "effect": "No action needed", "detail": "ปลอดภัย สามารถใช้ร่วมกันได้", "reference": "UpToDate® Lexidrug™"},
-    "ezetimibe": {"name": "Ezetimibe", "risk": "B", "effect": "No action needed", "detail": "ปลอดภัย สามารถใช้ร่วมกันได้", "reference": "UpToDate® Lexidrug™"},
-    "furosemide": {"name": "Furosemide", "risk": "B", "effect": "No action needed", "detail": "ปลอดภัย สามารถใช้ร่วมกันได้", "reference": "UpToDate® Lexidrug™"},
-    "hydrochlorothiazide": {"name": "Hydrochlorothiazide", "risk": "B", "effect": "No action needed", "detail": "ปลอดภัย สามารถใช้ร่วมกันได้", "reference": "UpToDate® Lexidrug™"},
-    "oseltamivir": {"name": "Oseltamivir", "risk": "B", "effect": "No action needed", "detail": "ปลอดภัย สามารถใช้ร่วมกันได้", "reference": "UpToDate® Lexidrug™"},
-    "pantoprazole": {"name": "Pantoprazole", "risk": "B", "effect": "No action needed", "detail": "ปลอดภัย สามารถใช้ร่วมกันได้", "reference": "UpToDate® Lexidrug™"},
-    "propranolol": {"name": "Propranolol", "risk": "B", "effect": "No action needed", "detail": "ปลอดภัย สามารถใช้ร่วมกันได้", "reference": "UpToDate® Lexidrug™"},
-    "rabeprazole": {"name": "Rabeprazole", "risk": "B", "effect": "No action needed", "detail": "ปลอดภัย สามารถใช้ร่วมกันได้", "reference": "UpToDate® Lexidrug™"},
-    "spironolactone": {"name": "Spironolactone", "risk": "B", "effect": "No action needed", "detail": "ปลอดภัย สามารถใช้ร่วมกันได้", "reference": "UpToDate® Lexidrug™"},
-
-    # 🟢 --- Category A (No known interaction) ---
-    "atorvastatin": {"name": "Atorvastatin", "risk": "A", "effect": "No known interaction", "detail": "ไม่พบปฏิกิริยาระหว่างยา", "reference": "UpToDate® Lexidrug™"}
-}
 
 RISK_COLOR_MAP = {"X": "#D32F2F", "D": "#EF6C00", "C": "#FBC02D", "B": "#0288D1", "A": "#388E3C"}
 
 # ==========================================
-# 🌐 LIFF 1: Calculator HTML (ไม่มี GPS)
+# 🌐 LIFF 1: Calculator HTML
 # ==========================================
 LIFF_CALC_HTML = """
 <!DOCTYPE html>
@@ -225,7 +188,7 @@ LIFF_CALC_HTML = """
 """
 
 # ==========================================
-# 🌐 LIFF 2: Interaction Checker HTML (อัปเดตระบบเรียงคำค้นหา)
+# 🌐 LIFF 2: Interaction Checker HTML (Smart Sorting)
 # ==========================================
 LIFF_INTERACT_HTML = """
 <!DOCTYPE html>
@@ -275,10 +238,8 @@ LIFF_INTERACT_HTML = """
             dropdown.innerHTML = '';
             if (!val) { dropdown.style.display = 'none'; return; }
             
-            // กรองคำที่ตรงกัน
             let matches = drugDB.filter(d => d.toLowerCase().includes(val) && !selectedDrugs.has(d));
             
-            // จัดเรียงคำค้นหา: ให้คำที่ขึ้นต้นด้วยข้อความที่พิมพ์มาอยู่ก่อน แล้วเรียง A-Z
             matches.sort((a, b) => {
                 const aLower = a.toLowerCase();
                 const bLower = b.toLowerCase();
@@ -352,6 +313,7 @@ def liff_pill_selector():
 
 @app.route("/liff/drug-interaction")
 def liff_drug_interaction():
+    # ส่งรายชื่อยาจากฐานข้อมูลใหม่ไปให้ LIFF
     drug_list = list(INTERACTION_DB.keys())
     return render_template_string(LIFF_INTERACT_HTML, liff_id=LIFF_ID_INTERACTION, drug_list=drug_list)
 
@@ -517,6 +479,15 @@ def callback():
 def handle_message(event):
     text = event.message.text.strip()
     user_id = event.source.user_id
+
+    # 🌟 คำสั่งลับสำหรับผู้ดูแลระบบ อัปเดตข้อมูลยาทันทีจาก Google Sheets!
+    if text == "อัปเดตยา":
+        success = load_drug_db()
+        if success:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ อัปเดตฐานข้อมูลยาจาก Google Sheets สำเร็จ!\nพบยาทั้งหมด: {len(INTERACTION_DB)} รายการ"))
+        else:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ ไม่สามารถอัปเดตข้อมูลได้ กรุณาตรวจสอบไฟล์ Google Sheets หรือ Credential"))
+        return
 
     if text.lower() == "ping":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🏓 Pong! \nเวลา: {datetime.now().strftime('%H:%M:%S')}"))
