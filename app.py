@@ -40,7 +40,6 @@ line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 user_sessions = {}
-user_locations = {} # 📍 ตัวแปรใหม่สำหรับเก็บพิกัดชั่วคราวแบบซ่อนรูป
 
 # ==========================================
 # 📊 ตั้งค่า Google Sheets
@@ -56,15 +55,11 @@ if GSHEETS_READY:
     except Exception as e:
         print(f"⚠️ Google Sheets Connection Failed: {e}")
 
-def log_to_sheets(feature, details, location):
+def log_to_sheets(feature, details, location="No GPS"):
     if sheet is None: return 
     try:
         timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        maps_link = location
-        if location and "," in location and "Denied" not in location and "No GPS" not in location:
-            maps_link = f"https://www.google.com/maps?q={location}"
-        
-        row_data = [timestamp, feature, details, maps_link]
+        row_data = [timestamp, feature, details, location]
         sheet.append_row(row_data)
         print("📝 Logged to Google Sheets!")
     except Exception as e:
@@ -106,7 +101,7 @@ INTERACTION_DB = {
     "ibuprofen": {"name": "Ibuprofen", "risk": "C", "effect": "Bleeding Risk", "detail": "NSAIDs เพิ่มความเสี่ยงเลือดออก"},
     "levofloxacin": {"name": "Levofloxacin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจเพิ่มฤทธิ์ Warfarin ควรติดตาม INR"},
     "naproxen": {"name": "Naproxen", "risk": "C", "effect": "Bleeding Risk", "detail": "NSAIDs เพิ่มความเสี่ยงเลือดออก"},
-    "omeprazole": {"name": "Omeprazole", "risk": "C", "effect": "Variable", "detail": "ผลต่อ INR ไม่แน่นอน (อาจเพิ่มในบางราย) ควรติดตามผล"},
+    "omeprazole": {"name": "Omeprazole", "risk": "C", "effect": "Variable", "detail": "ผลต่อ INR ไม่แน่นอน ควรติดตามผล"},
     "paracetamol": {"name": "Paracetamol", "risk": "C", "effect": "Poss. Incr. INR", "detail": "หากทาน >2g/วัน (4 เม็ด) ต่อเนื่องหลายวัน อาจเพิ่ม INR ได้"},
     "simvastatin": {"name": "Simvastatin", "risk": "C", "effect": "Poss. Incr. INR", "detail": "อาจเพิ่ม INR เล็กน้อย ควรติดตามผล"},
     "tramadol": {"name": "Tramadol", "risk": "C", "effect": "Poss. Incr. INR", "detail": "มีรายงานการเพิ่ม INR ในผู้ป่วยบางราย"},
@@ -124,7 +119,7 @@ INTERACTION_DB = {
 RISK_COLOR_MAP = {"X": "#D32F2F", "D": "#EF6C00", "C": "#FBC02D", "B": "#0288D1", "A": "#388E3C"}
 
 # ==========================================
-# 🌐 LIFF 1: Calculator HTML (แอบส่งพิกัดหลังบ้าน)
+# 🌐 LIFF 1: Calculator HTML (ไม่มีพิกัด)
 # ==========================================
 LIFF_CALC_HTML = """
 <!DOCTYPE html>
@@ -187,13 +182,6 @@ LIFF_CALC_HTML = """
             if(document.getElementById('unknownInr').checked) { document.getElementById('inrValue').value = ''; }
         }
 
-        function getLocation() {
-            return new Promise((resolve) => {
-                if (!navigator.geolocation) { resolve("No GPS"); } 
-                else { navigator.geolocation.getCurrentPosition((p) => { resolve(`${p.coords.latitude},${p.coords.longitude}`); }, (e) => { resolve("Location Denied"); }, { enableHighAccuracy: true, timeout: 5000 }); }
-            });
-        }
-
         async function sendData() {
             if (!liff.isInClient()) return alert("กรุณาเปิดในแอป LINE เท่านั้น");
             if (selected.size === 0) return alert("กรุณาเลือกขนาดยาที่มี");
@@ -203,27 +191,12 @@ LIFF_CALC_HTML = """
             let inr = document.getElementById('inrValue').value;
             if (!unk && !inr) return alert("กรุณากรอก INR");
             
-            const btn = document.getElementById('confirmBtn');
-            const originalText = btn.innerText;
-            btn.innerText = "กำลังหาพิกัด📍...";
-
             try {
-                // แอบดึงพิกัด และส่งไปบันทึกหลังบ้านแบบเงียบๆ
-                let location = await getLocation(); 
-                let profile = await liff.getProfile();
-                await fetch('/api/location', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: profile.userId, location: location })
-                });
-
-                // ส่งข้อความเข้าแชท "แบบไม่มีพิกัดติดไปด้วย"
                 let msg = `📝 ข้อมูลจัดยา: ${Array.from(selected).sort().join(",")} | ${dose} | ${unk ? "Unknown" : inr}`;
                 await liff.sendMessages([{type:'text', text:msg}]);
                 liff.closeWindow();
             } catch (err) { 
                 alert("Error: " + err); 
-                btn.innerText = originalText; 
             }
         }
         liff.init({ liffId: "{{ liff_id }}" }).then(() => { if (!liff.isLoggedIn()) liff.login(); });
@@ -233,7 +206,7 @@ LIFF_CALC_HTML = """
 """
 
 # ==========================================
-# 🌐 LIFF 2: Interaction Checker HTML (แอบส่งพิกัดหลังบ้าน)
+# 🌐 LIFF 2: Interaction Checker HTML (ไม่มีพิกัด)
 # ==========================================
 LIFF_INTERACT_HTML = """
 <!DOCTYPE html>
@@ -312,31 +285,11 @@ LIFF_INTERACT_HTML = """
             checkBtn.style.backgroundColor = selectedDrugs.size > 0 ? '#00C851' : '#ccc';
         }
 
-        function getLocation() {
-            return new Promise((resolve) => {
-                if (!navigator.geolocation) { resolve("No GPS"); } 
-                else { navigator.geolocation.getCurrentPosition((p) => { resolve(`${p.coords.latitude},${p.coords.longitude}`); }, (e) => { resolve("Location Denied"); }, { enableHighAccuracy: true, timeout: 5000 }); }
-            });
-        }
-
         async function submitData() {
             if (!liff.isInClient()) return alert("กรุณาใช้งานในแอป LINE เท่านั้น");
             if (selectedDrugs.size === 0) return alert("กรุณาเลือกยาก่อนกดตรวจสอบ");
             
-            const originalText = checkBtn.innerText;
-            checkBtn.innerText = "กำลังดึงพิกัด📍..."; 
-
             try {
-                // แอบดึงพิกัด และส่งไปบันทึกหลังบ้านแบบเงียบๆ
-                let location = await getLocation(); 
-                let profile = await liff.getProfile();
-                await fetch('/api/location', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: profile.userId, location: location })
-                });
-
-                // ส่งข้อความเข้าแชท "แบบไม่มีพิกัดติดไปด้วย"
                 const drugList = Array.from(selectedDrugs).join(", ");
                 const msg = `🔍 ตรวจสอบยา: ${drugList}`; 
                 
@@ -344,7 +297,6 @@ LIFF_INTERACT_HTML = """
                 liff.closeWindow(); 
             } catch (err) { 
                 alert("เกิดข้อผิดพลาด: " + err); 
-                checkBtn.innerText = originalText; 
             }
         }
         liff.init({ liffId: "{{ liff_id }}" }).then(() => { if (!liff.isLoggedIn()) liff.login(); });
@@ -359,14 +311,6 @@ LIFF_INTERACT_HTML = """
 @app.route("/")
 def home(): 
     return "✅ Warfy Server is Running!"
-
-# 📍 Route ใหม่! สำหรับรับข้อมูล GPS จากหน้าเว็บแบบเงียบๆ
-@app.route("/api/location", methods=['POST'])
-def api_location():
-    data = request.get_json(silent=True)
-    if data and 'userId' in data and 'location' in data:
-        user_locations[data['userId']] = data['location'] # เก็บไว้รอจับคู่กับข้อความ
-    return "OK", 200
 
 @app.route("/liff/pill-selector")
 def liff_pill_selector():
@@ -555,10 +499,7 @@ def handle_message(event):
 
     if text.startswith("🔍 ตรวจสอบยา:"):
         drugs_str = text.replace("🔍 ตรวจสอบยา:", "").strip()
-        
-        # 📍 ดึงพิกัดที่แอบซ่อนไว้หลังบ้านขึ้นมาใช้
-        location_str = user_locations.pop(user_id, "No GPS")
-        log_to_sheets("เช็กยาตีกัน", f"ค้นหา: {drugs_str}", location_str)
+        log_to_sheets("เช็กยาตีกัน", f"ค้นหา: {drugs_str}", "No GPS")
         
         analysis_results = analyze_drug_list(drugs_str)
         line_bot_api.reply_message(event.reply_token, build_analysis_flex(analysis_results))
@@ -579,15 +520,12 @@ def handle_message(event):
             dose_str = parts[1].strip()
             inr_str = parts[2].strip()
             
-            # 📍 ดึงพิกัดที่แอบซ่อนไว้หลังบ้านขึ้นมาใช้
-            location_str = user_locations.pop(user_id, "No GPS")
-            
             available_tabs = [float(x) for x in pills_str.split(",")]
             weekly_dose = float(dose_str)
             inr = None if (inr_str == "Unknown" or inr_str == "ไม่มี/ไม่ทราบ INR") else float(inr_str)
 
             min_t, max_t, msg, skip = get_dose_adjustment_range(inr, weekly_dose)
-            log_to_sheets("คำนวณยา", f"Dose เดิม: {weekly_dose}mg | INR: {inr_str} | ยาที่มี: {pills_str}mg | แนะนำ: {msg}", location_str)
+            log_to_sheets("คำนวณยา", f"Dose เดิม: {weekly_dose}mg | INR: {inr_str} | ยาที่มี: {pills_str}mg | แนะนำ: {msg}", "No GPS")
 
             if min_t is None and inr is not None:
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
