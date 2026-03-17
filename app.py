@@ -143,7 +143,7 @@ INTERACTION_DB = {
 RISK_COLOR_MAP = {"X": "#D32F2F", "D": "#EF6C00", "C": "#FBC02D", "B": "#0288D1", "A": "#388E3C"}
 
 # ==========================================
-# 🌐 LIFF 1: Calculator HTML
+# 🌐 LIFF 1: Calculator HTML (ไม่มี GPS)
 # ==========================================
 LIFF_CALC_HTML = """
 <!DOCTYPE html>
@@ -225,7 +225,7 @@ LIFF_CALC_HTML = """
 """
 
 # ==========================================
-# 🌐 LIFF 2: Interaction Checker HTML
+# 🌐 LIFF 2: Interaction Checker HTML (อัปเดตระบบเรียงคำค้นหา)
 # ==========================================
 LIFF_INTERACT_HTML = """
 <!DOCTYPE html>
@@ -256,7 +256,7 @@ LIFF_INTERACT_HTML = """
         <h3>🔍 ตรวจสอบ Warfarin Drug interaction</h3>
         <small style="color:#666;">พิมพ์ชื่อยาแล้ว <b>กดเลือกจากรายการ</b></small>
         <div class="search-box">
-            <input type="text" id="drugInput" placeholder="พิมพ์ชื่อยา (เช่น Para...)" autocomplete="off">
+            <input type="text" id="drugInput" placeholder="พิมพ์ชื่อยา (เช่น met...)" autocomplete="off">
             <div class="dropdown" id="suggestions"></div>
         </div>
         <div class="selected-area" id="selectedTags"></div>
@@ -274,7 +274,22 @@ LIFF_INTERACT_HTML = """
             const val = this.value.toLowerCase().trim();
             dropdown.innerHTML = '';
             if (!val) { dropdown.style.display = 'none'; return; }
-            const matches = drugDB.filter(d => d.toLowerCase().includes(val) && !selectedDrugs.has(d));
+            
+            // กรองคำที่ตรงกัน
+            let matches = drugDB.filter(d => d.toLowerCase().includes(val) && !selectedDrugs.has(d));
+            
+            // จัดเรียงคำค้นหา: ให้คำที่ขึ้นต้นด้วยข้อความที่พิมพ์มาอยู่ก่อน แล้วเรียง A-Z
+            matches.sort((a, b) => {
+                const aLower = a.toLowerCase();
+                const bLower = b.toLowerCase();
+                const aStarts = aLower.startsWith(val);
+                const bStarts = bLower.startsWith(val);
+
+                if (aStarts && !bStarts) return -1;
+                if (!aStarts && bStarts) return 1;
+                return aLower.localeCompare(bLower);
+            });
+
             if (matches.length > 0) {
                 dropdown.style.display = 'block';
                 matches.forEach(drug => {
