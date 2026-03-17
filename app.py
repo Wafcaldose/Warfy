@@ -2,6 +2,9 @@ import json
 import re
 import math
 import itertools
+import threading
+import time
+import requests
 from datetime import datetime, date
 from flask import Flask, request, abort, render_template_string
 from linebot import LineBotApi, WebhookHandler
@@ -119,7 +122,7 @@ INTERACTION_DB = {
 RISK_COLOR_MAP = {"X": "#D32F2F", "D": "#EF6C00", "C": "#FBC02D", "B": "#0288D1", "A": "#388E3C"}
 
 # ==========================================
-# 🌐 LIFF 1: Calculator HTML (ไม่มีพิกัด)
+# 🌐 LIFF 1: Calculator HTML (ไม่มี GPS)
 # ==========================================
 LIFF_CALC_HTML = """
 <!DOCTYPE html>
@@ -206,7 +209,7 @@ LIFF_CALC_HTML = """
 """
 
 # ==========================================
-# 🌐 LIFF 2: Interaction Checker HTML (ไม่มีพิกัด)
+# 🌐 LIFF 2: Interaction Checker HTML (ไม่มี GPS)
 # ==========================================
 LIFF_INTERACT_HTML = """
 <!DOCTYPE html>
@@ -571,5 +574,18 @@ def handle_postback(event):
         msg = (f"📅 **สรุปยอดเบิกยา**\nนัด: {selected_date.strftime('%d/%m/%Y')} ({days_diff} วัน)\nคิดเป็น: {weeks_ceiling} สัปดาห์ (ปัดขึ้น)\n-----------------\n{chr(10).join(result_lines)}")
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
 
+# ⏰ ระบบปลุกเซิร์ฟเวอร์อัตโนมัติ (Keep-alive)
+def keep_alive():
+    url = "https://warfy-bot.onrender.com/"
+    while True:
+        try:
+            requests.get(url)
+            print("⏰ Ping! ปลุกเซิร์ฟเวอร์สำเร็จ")
+        except Exception as e:
+            print("⚠️ Ping Failed:", e)
+        time.sleep(300) # ทำงานทุก 5 นาที (300 วินาที)
+
 if __name__ == "__main__":
+    # สั่งให้ระบบปลุกทำงานเบื้องหลังทันทีที่เปิดแอป
+    threading.Thread(target=keep_alive, daemon=True).start()
     app.run(port=5000)
