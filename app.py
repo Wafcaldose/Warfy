@@ -580,7 +580,7 @@ def keep_alive():
     while True:
         try:
             requests.get(url)
-            print("⏰ Ping! ปลุกเซิร์ฟเวอร์สำเร็จ")
+            print("⏰ Ping! ปลุกเซิฟเวอร์สำเร็จ")
         except Exception as e:
             print("⚠️ Ping Failed:", e)
         time.sleep(300) # ทำงานทุก 5 นาที (300 วินาที)
