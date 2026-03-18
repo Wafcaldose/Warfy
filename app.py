@@ -45,36 +45,38 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 user_sessions = {}
 
 # ==========================================
-# 📊 ตั้งค่า Google Sheets
+# 📊 ตั้งค่า Google Sheets (อัปเดตระบบเชื่อมต่อใหม่แบบ Dynamic)
 # ==========================================
+gc_client = None
 sheet_logs = None
-sheet_di = None
-INTERACTION_DB = {} # ตัวแปรเก็บฐานข้อมูลยา
+INTERACTION_DB = {}
 
 if GSHEETS_READY:
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     try:
         creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
-        gc = gspread.authorize(creds)
-        wb = gc.open("Warfy_Logs")
-        sheet_logs = wb.sheet1 # ชีตแรกสำหรับเก็บสถิติ
-        sheet_di = wb.worksheet("DI database") # ชีตใหม่สำหรับดึงข้อมูลยา
+        gc_client = gspread.authorize(creds)
+        wb = gc_client.open("Warfy_Logs")
+        sheet_logs = wb.sheet1
         print("✅ Google Sheets Connected Successfully!")
     except Exception as e:
         print(f"⚠️ Google Sheets Connection Failed: {e}")
 
-# 🔄 ฟังก์ชันสำหรับโหลดข้อมูลยาจาก Google Sheets
+# 🔄 ฟังก์ชันสำหรับโหลดข้อมูลยา (วิ่งไปหาชีต DI database ใหม่ทุกครั้งที่เรียกใช้)
 def load_drug_db():
     global INTERACTION_DB
-    if sheet_di is None:
-        print("⚠️ ไม่สามารถโหลดข้อมูลยาได้: ยังไม่ได้เชื่อมต่อ Google Sheets")
+    if gc_client is None:
+        print("⚠️ ยังไม่ได้เชื่อมต่อ Google Sheets API")
         return False
     try:
+        wb = gc_client.open("Warfy_Logs")
+        sheet_di = wb.worksheet("DI database") # ค้นหาชีตแบบ Real-time
         records = sheet_di.get_all_records()
+        
         new_db = {}
         for row in records:
             keyword = str(row.get('Keyword', '')).strip().lower()
-            if not keyword: continue # ข้ามบรรทัดที่ว่าง
+            if not keyword: continue # ข้ามแถวที่ว่าง
             new_db[keyword] = {
                 "name": str(row.get('Name', '')),
                 "risk": str(row.get('Risk', '')),
@@ -85,13 +87,16 @@ def load_drug_db():
                 "pdf_url": str(row.get('PDF_URL', ''))
             }
         INTERACTION_DB = new_db
-        print(f"✅ โหลดข้อมูลยาเสร็จสิ้น! พบยาทั้งหมด {len(INTERACTION_DB)} รายการ")
+        print(f"✅ โหลดข้อมูลยาสำเร็จ! พบ {len(INTERACTION_DB)} รายการ")
         return True
+    except gspread.exceptions.WorksheetNotFound:
+        print("⚠️ ไม่พบแผ่นงานชื่อ 'DI database' โปรดตรวจสอบชื่อให้ถูกต้อง")
+        return False
     except Exception as e:
-        print(f"⚠️ เกิดข้อผิดพลาดในการโหลดข้อมูลยา: {e}")
+        print(f"⚠️ โหลดข้อมูลยาไม่สำเร็จ: {e}")
         return False
 
-# โหลดฐานข้อมูลยาทันทีที่เปิดเซิร์ฟเวอร์
+# โหลดข้อมูล 1 ครั้งตอนเซิร์ฟเวอร์ติด
 load_drug_db()
 
 def log_to_sheets(feature, details, location="No GPS"):
@@ -188,7 +193,7 @@ LIFF_CALC_HTML = """
 """
 
 # ==========================================
-# 🌐 LIFF 2: Interaction Checker HTML (Smart Sorting)
+# 🌐 LIFF 2: Interaction Checker HTML
 # ==========================================
 LIFF_INTERACT_HTML = """
 <!DOCTYPE html>
@@ -313,7 +318,6 @@ def liff_pill_selector():
 
 @app.route("/liff/drug-interaction")
 def liff_drug_interaction():
-    # ส่งรายชื่อยาจากฐานข้อมูลใหม่ไปให้ LIFF
     drug_list = list(INTERACTION_DB.keys())
     return render_template_string(LIFF_INTERACT_HTML, liff_id=LIFF_ID_INTERACTION, drug_list=drug_list)
 
@@ -480,13 +484,13 @@ def handle_message(event):
     text = event.message.text.strip()
     user_id = event.source.user_id
 
-    # 🌟 คำสั่งลับสำหรับผู้ดูแลระบบ อัปเดตข้อมูลยาทันทีจาก Google Sheets!
+    # 🌟 ฟีเจอร์อัปเดตข้อมูลยาจาก Google Sheets ทันที
     if text == "อัปเดตยา":
         success = load_drug_db()
         if success:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ อัปเดตฐานข้อมูลยาจาก Google Sheets สำเร็จ!\nพบยาทั้งหมด: {len(INTERACTION_DB)} รายการ"))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ อัปเดตฐานข้อมูลยาจาก Google Sheets สำเร็จ!\nระบบค้นพบยาทั้งหมด: {len(INTERACTION_DB)} รายการ"))
         else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ ไม่สามารถอัปเดตข้อมูลได้ กรุณาตรวจสอบไฟล์ Google Sheets หรือ Credential"))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ ไม่สามารถอัปเดตข้อมูลได้ โปรดตรวจสอบว่าตั้งชื่อชีตว่า 'DI database' ถูกต้องและไม่มีการเว้นวรรคส่วนเกินครับ"))
         return
 
     if text.lower() == "ping":
