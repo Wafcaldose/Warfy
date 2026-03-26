@@ -16,7 +16,7 @@ from linebot.models import (
     CarouselContainer, ButtonComponent
 )
 
-# 🛡️ ระบบป้องกัน Server Crash หากลืมลง Library
+# 🛡️ ระบบป้องกัน Server Crash
 try:
     import gspread
     from google.oauth2.service_account import Credentials
@@ -45,59 +45,18 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 user_sessions = {}
 
 # ==========================================
-# 📊 ตั้งค่า Google Sheets (อัปเดตระบบเชื่อมต่อใหม่แบบ Dynamic)
+# 📊 ตั้งค่า Google Sheets (เก็บเฉพาะประวัติการใช้งาน)
 # ==========================================
-gc_client = None
 sheet_logs = None
-INTERACTION_DB = {}
-
 if GSHEETS_READY:
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     try:
         creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPES)
-        gc_client = gspread.authorize(creds)
-        wb = gc_client.open("Warfy_Logs")
-        sheet_logs = wb.sheet1
-        print("✅ Google Sheets Connected Successfully!")
+        gc = gspread.authorize(creds)
+        sheet_logs = gc.open("Warfy_Logs").sheet1
+        print("✅ Google Sheets Connected (For Logs Only)!")
     except Exception as e:
         print(f"⚠️ Google Sheets Connection Failed: {e}")
-
-# 🔄 ฟังก์ชันสำหรับโหลดข้อมูลยา (วิ่งไปหาชีต DI database ใหม่ทุกครั้งที่เรียกใช้)
-def load_drug_db():
-    global INTERACTION_DB
-    if gc_client is None:
-        print("⚠️ ยังไม่ได้เชื่อมต่อ Google Sheets API")
-        return False
-    try:
-        wb = gc_client.open("Warfy_Logs")
-        sheet_di = wb.worksheet("DI database") # ค้นหาชีตแบบ Real-time
-        records = sheet_di.get_all_records()
-        
-        new_db = {}
-        for row in records:
-            keyword = str(row.get('Keyword', '')).strip().lower()
-            if not keyword: continue # ข้ามแถวที่ว่าง
-            new_db[keyword] = {
-                "name": str(row.get('Name', '')),
-                "risk": str(row.get('Risk', '')),
-                "effect": str(row.get('Effect', '')),
-                "detail": str(row.get('Detail', '')),
-                "management": str(row.get('Management', '')),
-                "reference": str(row.get('Reference', '')),
-                "pdf_url": str(row.get('PDF_URL', ''))
-            }
-        INTERACTION_DB = new_db
-        print(f"✅ โหลดข้อมูลยาสำเร็จ! พบ {len(INTERACTION_DB)} รายการ")
-        return True
-    except gspread.exceptions.WorksheetNotFound:
-        print("⚠️ ไม่พบแผ่นงานชื่อ 'DI database' โปรดตรวจสอบชื่อให้ถูกต้อง")
-        return False
-    except Exception as e:
-        print(f"⚠️ โหลดข้อมูลยาไม่สำเร็จ: {e}")
-        return False
-
-# โหลดข้อมูล 1 ครั้งตอนเซิร์ฟเวอร์ติด
-load_drug_db()
 
 def log_to_sheets(feature, details, location="No GPS"):
     if sheet_logs is None: return 
@@ -108,7 +67,46 @@ def log_to_sheets(feature, details, location="No GPS"):
     except Exception as e:
         print(f"⚠️ Error logging to sheets: {e}")
 
-RISK_COLOR_MAP = {"X": "#D32F2F", "D": "#EF6C00", "C": "#FBC02D", "B": "#0288D1", "A": "#388E3C"}
+# ==========================================
+# 💊 ฐานข้อมูลยา (อ้างอิงจากไฟล์ Warfarin Drug interaction.pdf 100%)
+# หัวข้ออ้างอิงตามเอกสาร: Effect, Mechanism, Onset, Offset, Management, Significant, Info
+# ==========================================
+INTERACTION_DB = {
+    "acarbose": {"name": "Acarbose", "effect": "↑ INR Moderate", "mechanism": "Unknown: effect may be due to increase in warfarin absorption or to drug-associated diarrhea", "onset": "2-3 days", "offset": "(t1/2=2 hours) ระดับ INR กลับมาคงที่ใช้เวลา 7-14 วัน หลังหยุดยา Acarbose*", "management": "Monitor INR closely when starting or stopping acarbose", "significant": "4", "info": "*Morreale AP, et al. Am J Health Syst Pharm. 1997;54(13):1551\nGebauer MG, et al. Pharmacotherapy. 2003 Jan;23(1):109-12."},
+    "acetaminophen": {"name": "Acetaminophen (doses > 2 g/d)", "effect": "↑ INR Moderate", "mechanism": "Decrease in warfarin metabolism and/or decrease in production of clotting factors", "onset": "2-5 days", "offset": "(t1/2=2-4 hours) หยุดยา 2 วันแล้ว กลับมาปกติ", "management": "Monitor INR when starting or stopping higher doses of acetaminophen; minimize use of drug (e.g., <2 g/d for short courses [<1 week])", "significant": "2", "info": ""},
+    "allopurinol": {"name": "Allopurinol", "effect": "↑ INR Major", "mechanism": "Unknown", "onset": "3-5 days", "offset": "NR (t1/2=1-2 hours; for active metabolite, oxypurinol, t1/2=15-25 hours)", "management": "Reports of interaction are inconsistent; monitor INR when starting or stopping allopurinol Reassess in 1 week", "significant": "4", "info": ""},
+    "amiodarone": {"name": "Amiodarone", "effect": "↑ INR Moderate to severe", "mechanism": "Inhibition of warfarin metabolism; amiodarone may also increase or reduce INR by inducing hyper- or hypothyroidism, respectively", "onset": "3-7 days ทำให้ระดับ INR เพิ่มขึ้น อย่างช้าๆ ในช่วง 2-4 สัปดาห์แรก**", "offset": "~90 days; may be longer if amiodarone therapy is prolonged (t1/2 = 26-107 days) หลังจากหยุดยา INR ลดลงอย่างช้าๆ ในช่วง 4-12 สัปดาห์หลังหยุดยา amiodarone**", "management": "Monitor INR closely (i.e., weekly) when starting or stopping amiodarone; AMS considers empiric 10%-25% warfarin dose reduction 1 week after starting amiodarone, in anticipation of eventual dose reductions of up to 60%. ให้ติดตาม INR ทุก 1-2 สัปดาห์ในช่วง 12 สัปดาห์แรกที่ทานยา", "significant": "1", "info": "*Lu, et al. Am J Health Syst Pharm May 15, 2008; 65(10):947-952.\n**Kurnik, Daniel MD; et al. Medicine (Baltimore). 2004 Mar;83(2):107-13."},
+    "amprenavir": {"name": "Amprenavir", "effect": "↑ INR Moderate", "mechanism": "May inhibit warfarin metabolism (through CYP3A4 inhibition)", "onset": "Delayed", "offset": "Delayed (t1/2=7-10 hours)", "management": "Monitor INR more frequently when starting or stopping amprenavir; addition of ritonavir booster may result in net decrease in INR", "significant": "4", "info": ""},
+    "aspirin": {"name": "ASA (Aspirin <6 g/d)", "effect": "No effect on INR, ↑ risk of bleeding Major", "mechanism": "Irreversible inhibition of platelet function", "onset": "1-3 days", "offset": "5-7 days (inhibitory effects of ASA on platelets last for lifetime of each platelet)", "management": "Use lowest effective dose of ASA; use enteric-coated formulation; monitor for bleeding", "significant": "1", "info": ""},
+    "atazanavir": {"name": "Atazanavir", "effect": "↑ INR Moderate", "mechanism": "May inhibit warfarin metabolism (through CYP3A4 inhibition)", "onset": "Delayed", "offset": "Delayed (t1/2 = ~7 hours)", "management": "Monitor INR more frequently when starting or stopping atazanavir", "significant": "4", "info": ""},
+    "azathioprine": {"name": "Azathioprine / Mercaptopurine", "effect": "↓ INR Moderate", "mechanism": "Possible increase in warfarin metabolism", "onset": "1-3 days", "offset": "NR (t1/2 = 5 hours)", "management": "Monitor INR when therapy is started or discontinued or dosage is adjusted; significantly more (2- to 3-fold) warfarin may be required", "significant": "2", "info": ""},
+    "azithromycin": {"name": "Azithromycin", "effect": "↑ INR Major", "mechanism": "Possible decrease in warfarin metabolism; interaction is often compounded by other factors (e.g., fever, decreased appetite)", "onset": "3-7 days", "offset": "NR (t1/2=68 hours)", "management": "Inconsistent effect; monitor INR closely when starting or stopping azithromycin; AMS will not empirically decrease warfarin unless patient has other factors affecting INR", "significant": "1", "info": ""},
+    "barbiturates": {"name": "Barbiturates (phenobarbital, etc.)", "effect": "↓ INR Major", "mechanism": "Induction of hepatic metabolism of warfarin", "onset": "Delayed เริ่มเห็นผลภายใน 14 วันนับจากวันที่เริ่มยา", "offset": "NR (t1/2 1.5-4.9 days) เมื่อหยุดยา phenobarbital การ metabolism ยา warfarin จะลดลง ภายใน 2 สัปดาห์", "management": "Monitor INR closely; 30%-60% warfarin dose increases may be required after barbiturate initiation", "significant": "1", "info": "MacDonald MG, Robinson DS. JAMA 1968 Apr 8;204(2):97-100."},
+    "bosentan": {"name": "Bosentan", "effect": "↓ INR Moderate", "mechanism": "May induce warfarin metabolism (through CYP3A4 and/or CYP2C9)", "onset": "5-10 days", "offset": "NR (t1/2 5-8 hours)", "management": "Monitor INR when starting or stopping bosentan; AMS considers empiric 15%-20% warfarin dose increase, may need increase up to 50%", "significant": "2", "info": ""},
+    "carbamazepine": {"name": "Carbamazepine (CBZ)", "effect": "↓ INR Moderate to severe", "mechanism": "Increase in warfarin metabolism (through CYP2C9 induction)", "onset": "10-35 days", "offset": "Delayed (14-40 days) (t1/2 = 12-17 hours)", "management": "Monitor INR closely when starting, stopping, or adjusting CBZ; increase in warfarin dose of 50%-100% may be required when initiating CBZ; decrease warfarin dose by ~50% when stopping CBZ", "significant": "2", "info": ""},
+    "celecoxib": {"name": "Celecoxib", "effect": "↑ INR Major (especially in elderly patients)", "mechanism": "Celecoxib is metabolized by CYP2C9 but does not inhibit or induce this isozyme", "onset": "2-5 days", "offset": "NR (t1/2=11 h)", "management": "Monitor INR closely when starting or stopping celecoxib; monitor for bleeding; AMS considers empiric 0%-15% warfarin dose reduction", "significant": "1", "info": ""},
+    "cephalosporins": {"name": "Cephalosporins (Cefazolin, Ceftriaxone, etc.)", "effect": "↑ INR Moderate", "mechanism": "", "onset": "Delayed", "offset": "", "management": "Monitor INR closely when starting or stopping Cephalosporins", "significant": "2", "info": ""},
+    "cimetidine": {"name": "Cimetidine", "effect": "↑ INR Moderate", "mechanism": "Decrease in warfarin metabolism", "onset": "3-5 days", "offset": "~1 week (t1/2 = 2 hours)", "management": "Monitor INR closely when starting or stopping cimetidine until INR is stable; consider changing to another H2RA or PPI instead of using cimetidine", "significant": "1", "info": ""},
+    "ciprofloxacin": {"name": "Ciprofloxacin", "effect": "↑ INR Major", "mechanism": "Unknown; may be due to CYP1A2 inhibition; interaction more prevalent among elderly patients taking multiple medications", "onset": "2-5 days", "offset": "2-4 days (t1/2=3-6 hours)", "management": "Monitor INR more frequently when starting or stopping ciprofloxacin; most patients will have increase in INR; AMS considers empiric 10%-15% warfarin dose reduction", "significant": "1", "info": "drug fact 2012 2014"},
+    "cisplatin": {"name": "Cisplatin", "effect": "↑ INR, ↑ risk of bleeding Major", "mechanism": "", "onset": "Delayed", "offset": "", "management": "หากผู้ป่วยได้รับ warfarin ร่วมกับ Cisplatin โดยเฉพาะในช่วงสามวันแรกของการรับยาเคมีบำบัด ควรมีการติดตาม INR อย่างใกล้ชิด (อย่างน้อย 2 สัปดาห์หลังรับยา) และติดตามอาการเลือดออก และปรับขนาด", "significant": "1", "info": "Yano R, et al. Ann Pharmacother Oct, 2011;45(10):e55"},
+    "clarithromycin": {"name": "Clarithromycin", "effect": "↑ INR Major", "mechanism": "Inhibition of warfarin metabolism (through CYP3A4 inhibition)", "onset": "3-7 days", "offset": "NR (t1/2=5-7 hours)", "management": "Monitor INR more frequently when starting or stopping clarithromycin; AMS considers empiric 15%-25% warfarin dose reduction", "significant": "1", "info": ""},
+    "clopidogrel": {"name": "Clopidogrel", "effect": "No effect on INR, ↑ risk of bleeding Severe", "mechanism": "Antiplatelet effects of clopidogrel combined with anticoagulant effect of warfarin impair clotting", "onset": "~2 hours for antiplatelet impact", "offset": "3-7 days (platelet aggregation is irreversibly inhibited by metabolite of clopidogrel for lifetime of the platelet)", "management": "Monitor for bleeding", "significant": "1", "info": ""},
+    "cyclophosphamide": {"name": "Cyclophosphamide", "effect": "↑ INR, ↑ risk of bleeding Major", "mechanism": "Possible protein displacement, inhibition of warfarin metabolism, or inhibition of clotting-factor synthesis", "onset": "1-3 days", "offset": "Not Specified", "management": "Monitor INR closely", "significant": "1", "info": "Seifter et al, Cancer Treat Rep. 1985 Feb;69(2):244-245."},
+    "diclofenac": {"name": "Diclofenac", "effect": "No effect on INR, ↑ risk of bleeding Major", "mechanism": "Inhibition of platelets and gastroprotective prostaglandins", "onset": "2-5 days", "offset": "3-7 days (t1/2=2 hours)", "management": "Minimal interaction if diclofenac administered topically; minimize oral use; watch for bleeding, especially gastrointestinal bleeding", "significant": "1", "info": ""},
+    "dicloxacillin": {"name": "Dicloxacillin", "effect": "↓ INR Moderate", "mechanism": "Increase in warfarin metabolism (through CYP2C9, CYP3A4 induction)", "onset": "Delayed เริ่มเห็นการลดลงของ INR หลังจากเริ่มให้ dicloxacillin คู่กันไป 4-5 วัน และมีผลต่อเนื่องหลังหยุดยาไปแล้วอีกอย่างน้อย 2-3 สัปดาห์", "offset": "", "management": "Monitor INR ในช่วงแรกของการให้ และหลังจากหยุด dicloxacillin อย่างน้อยอีก 3 สัปดาห์", "significant": "2", "info": "Lacey CS. Ann Pharmacother 2004; 38(5): 898."},
+    "erythromycin": {"name": "Erythromycin", "effect": "↑ INR Major", "mechanism": "Decrease in warfarin metabolism (through CYP3A4 inhibition)", "onset": "3-5 days", "offset": "3-5 days (t1/2=~1.5 hours)", "management": "Monitor INR when starting or stopping erythromycin; AMS considers empiric 10%-15% warfarin dose reduction", "significant": "1", "info": ""},
+    "fluconazole": {"name": "Fluconazole", "effect": "↑ INR Major", "mechanism": "Inhibition of warfarin metabolism (via CYP2C9 and CYP3A4)", "onset": "2-3 days", "offset": "7-10 days (t1/2=~30 hours; prolonged in elderly patients)", "management": "Monitor INR closely when starting or stopping fluconazole; AMS considers empiric 25%-30% warfarin dose reduction, with eventual reductions approaching 80%", "significant": "3", "info": ""},
+    "fluoxetine": {"name": "Fluoxetine", "effect": "↑ INR or ↑ Risk bleeding Moderate", "mechanism": "", "onset": "Delayed", "offset": "การเพิ่มขึ้นของ INR จะเห็นได้ชัดเจนประมาณ 1 สัปดาห์เมื่อได้รับยาร่วมกัน และจะกลับมาปกติหลังหยุดยาประมาณ 1 สัปดาห์ หรืออาจยังสูงอยู่แม้ว่าจะหยุดให้ยา", "management": "Monitor INR and for bleeding", "significant": "2", "info": "Duncan D, et al. IntClin Psychopharmacol 1998;13(2):87-94.\nWelmoed E, et al. Arch Intern Med. 2004;164:2367-2370."},
+    "ibuprofen": {"name": "Ibuprofen", "effect": "No effect, ↑ risk of bleeding Major", "mechanism": "Inhibition of functioning of platelets and gastroprotective prostaglandins", "onset": "~2-5 days (Delayed)", "offset": "3-7 days (t1/2 =1.8-2.4 hours)", "management": "Monitor for bleeding (especially gastrointestinal); minimize or avoid concurrent use of ibuprofen; take with food", "significant": "1", "info": ""},
+    "itraconazole": {"name": "Itraconazole / Ketoconazole", "effect": "↑ INR Major", "mechanism": "Inhibition of warfarin metabolism (via CYP2C9 and CYP3A4)", "onset": "2-5 days", "offset": "3-14 days", "management": "Monitor INR closely when starting or stopping; AMS considers empiric 25%-30% warfarin dose reductions", "significant": "3", "info": ""},
+    "levofloxacin": {"name": "Levofloxacin", "effect": "↑ INR Major", "mechanism": "Unknown; possible CYP1A2 inhibition; clinically significant interaction more common among elderly patients", "onset": "3-5 days", "offset": "5-10 days", "management": "Monitor INR closely when starting or stopping levofloxacin; INR will be affected by severity of illness; AMS considers empiric 0%-15% warfarin dose reduction", "significant": "1", "info": ""},
+    "metronidazole": {"name": "Metronidazole", "effect": "↑ INR Major", "mechanism": "Decrease in warfarin metabolism (through CYP2C9 inhibition)", "onset": "3-5 days", "offset": "~2 days (t1/2 = 8 hours)", "management": "Monitor INR closely when starting or stopping metronidazole; AMS considers empiric 25%-40% warfarin dose reduction", "significant": "1", "info": ""},
+    "omeprazole": {"name": "Omeprazole", "effect": "↑ INR Mild to moderate", "mechanism": "Decrease in warfarin metabolism through stereoselective inhibition of the hepatic metabolism", "onset": "3-5 days", "offset": "NR (t1/2=0.5-1 hour)", "management": "Interaction of doubtful clinical significance; minimal effect on INR; no empiric warfarin dose adjustment required", "significant": "4", "info": ""},
+    "phenytoin": {"name": "Phenytoin", "effect": "Initially transient ↑ risk of bleeding; with long-term use, ↓ INR Moderate", "mechanism": "Initially, displacement of warfarin from protein-binding sites; with long-term use, induction of hepatic metabolism", "onset": "Initial: 1-3 days, Subsequent: 2-4 weeks", "offset": "10-14 days (t1/2 = 22 hours)", "management": "Monitor INR closely when starting or stopping phenytoin; some patients may require up to 50% warfarin dose increase several weeks after phenytoin is initiated", "significant": "2", "info": ""},
+    "rifampin": {"name": "Rifampin", "effect": "↓ INR Moderate to severe", "mechanism": "Induction of hepatic metabolism of warfarin", "onset": "1-3 weeks", "offset": "1-5 weeks (t1/2 = 1.5-5 hours)", "management": "Monitor INR carefully (at least weekly) when starting or stopping rifampin; AMS considers empiric 25%-50% warfarin dose increase initially, patients may require 2-3 times their regular weekly warfarin dose", "significant": "2", "info": ""},
+    "simvastatin": {"name": "Simvastatin", "effect": "↑ INR Major", "mechanism": "Competition for CYP3A4-mediated metabolism", "onset": "3-7 days", "offset": "3-7 days (t1/2=3 hours)", "management": "Monitor INR when starting or stopping simvastatin; consider using alternative statin (atorvastatin or pravastatin)", "significant": "1", "info": ""},
+    "tramadol": {"name": "Tramadol", "effect": "↑ INR Moderate", "mechanism": "Unknown (possible inhibition of CYP3A4-mediated warfarin metabolism)", "onset": "3-7 days", "offset": "3-7 days (t1/2=5.6-6.7 hours)", "management": "Monitor INR when starting or stopping tramadol; dose reductions of 25%-30% may be required; AMS considers empiric 0%-20% warfarin dose reduction", "significant": "2", "info": ""}
+}
 
 # ==========================================
 # 🌐 LIFF 1: Calculator HTML
@@ -193,7 +191,7 @@ LIFF_CALC_HTML = """
 """
 
 # ==========================================
-# 🌐 LIFF 2: Interaction Checker HTML
+# 🌐 LIFF 2: Interaction Checker HTML (Smart Sorting)
 # ==========================================
 LIFF_INTERACT_HTML = """
 <!DOCTYPE html>
@@ -334,49 +332,43 @@ def analyze_drug_list(drug_names_str):
                     break 
     return results
 
+# สร้างฟังก์ชันสร้าง Flex Message ตามหัวข้อตารางเป๊ะๆ
 def build_analysis_flex(results):
-    if not results: return TextSendMessage(text="✅ ไม่พบปฏิกิริยาระหว่างยาในฐานข้อมูล (เบื้องต้นปลอดภัย หรืออาจสะกดผิด)\n\n*ผลลัพธ์นี้อ้างอิงจากฐานข้อมูลยาหลักเท่านั้น")
+    if not results: 
+        return TextSendMessage(text="✅ ไม่พบปฏิกิริยาระหว่างยาในฐานข้อมูล (เบื้องต้นอาจปลอดภัย หรืออาจสะกดผิด)\n\n*อ้างอิงจากรายการยาที่มีรายงานอันตรกิริยากับยา warfarin (Practical tool)")
+    
     bubbles = []
-    risk_order = {'X':0, 'D':1, 'C':2, 'B':3, 'A':4}
-    results.sort(key=lambda x: risk_order.get(x['risk'], 5))
-
     for item in results:
-        risk = item['risk']
-        color = RISK_COLOR_MAP.get(risk, "#999999")
-        risk_text_map = {"X": "X - หลีกเลี่ยง (Avoid)", "D": "D - ปรับเปลี่ยน (Modify)", "C": "C - ติดตามผล (Monitor)", "B": "B - ไม่ต้องกังวล", "A": "A - ปลอดภัย"}
-        
         body_contents = [
             BoxComponent(layout="horizontal", contents=[
-                TextComponent(text=item['name'], weight="bold", size="lg", flex=1, color="#333333"),
-                TextComponent(text=risk, weight="bold", color="#FFFFFF", align="center", gravity="center", backgroundColor=color, cornerRadius="20px", paddingAll="xs", width="30px")
+                TextComponent(text=item.get('name', ''), weight="bold", size="lg", flex=1, color="#333333", wrap=True)
             ]),
-            TextComponent(text=risk_text_map.get(risk, risk), size="xs", weight="bold", color=color, margin="sm"),
-            BoxComponent(layout="vertical", margin="md", backgroundColor="#f0f0f0", height="1px"),
-            TextComponent(text="ผลกระทบ:", size="xs", color="#888888", margin="md"),
-            TextComponent(text=item['effect'], size="sm", wrap=True, color="#333333"),
-            TextComponent(text="รายละเอียด:", size="xs", color="#888888", margin="md"),
-            TextComponent(text=item['detail'], size="sm", wrap=True, color="#333333")
+            BoxComponent(layout="vertical", margin="md", backgroundColor="#f0f0f0", height="1px")
         ]
+        
+        # ฟังก์ชันช่วยสร้างหัวข้อใน Flex
+        def add_field(title, key, title_color="#1E90FF"):
+            if key in item and item[key] and item[key].strip() != "" and item[key] != "NR":
+                body_contents.append(TextComponent(text=title, size="xs", color=title_color, margin="md", weight="bold", wrap=True))
+                body_contents.append(TextComponent(text=str(item[key]).replace('\\n', ' ').strip(), size="sm", wrap=True, color="#333333"))
 
-        if 'management' in item and item['management']:
-            body_contents.append(TextComponent(text="การจัดการ (Management):", size="xs", color="#D32F2F", margin="md", weight="bold"))
-            body_contents.append(TextComponent(text=item['management'], size="sm", wrap=True, color="#333333"))
-            
-        if 'reference' in item and item['reference']:
-            body_contents.append(BoxComponent(layout="vertical", margin="md", backgroundColor="#f0f0f0", height="1px"))
-            body_contents.append(TextComponent(text="แหล่งข้อมูลอ้างอิง:", size="xxs", color="#888888", margin="sm"))
-            body_contents.append(TextComponent(text=item['reference'], size="xxs", wrap=True, color="#aaaaaa"))
-            
-        if 'pdf_url' in item and item['pdf_url']:
-            body_contents.append(ButtonComponent(style="secondary", height="sm", margin="md", color="#e3f2fd", action=URIAction(label="📄 เปิดอ่านเอกสารเต็ม", uri=item['pdf_url'])))
+        # แสดงผลตามคอลัมน์ใน PDF
+        add_field("Direction and severity of effect on INR:", "effect", "#D32F2F") # สีแดงให้เด่น
+        add_field("Mechanism:", "mechanism")
+        add_field("Anticipated onset:", "onset")
+        add_field("Anticipated offset (t1/2):", "offset")
+        add_field("Suggested management:", "management", "#EF6C00") # สีส้มสำหรับคำแนะนำ
+        add_field("Significant:", "significant")
+        add_field("ข้อมูลเพิ่มเติม:", "info")
 
         bubbles.append(BubbleContainer(body=BoxComponent(layout="vertical", contents=body_contents)))
     
     bubbles.append(BubbleContainer(body=BoxComponent(layout="vertical", contents=[
-        TextComponent(text="📚 ข้อมูลนี้ใช้เพื่อการศึกษาเท่านั้น", weight="bold", size="sm", color="#1E90FF", margin="md"),
-        TextComponent(text="อ้างอิงข้อมูลจาก UpToDate® Lexidrug™ ตามที่แจ้งไว้ในระบบ", size="xs", color="#666666", wrap=True, margin="sm"),
-        TextComponent(text="*โปรดปรึกษาแพทย์หรือเภสัชกรก่อนปรับเปลี่ยนขนาดยาทุกครั้ง", size="xxs", color="#aaaaaa", wrap=True, margin="md")
+        TextComponent(text="📚 แหล่งอ้างอิงหลัก:", weight="bold", size="sm", color="#1E90FF", margin="md"),
+        TextComponent(text="Practical tool - Warfarin drug interaction", size="xs", color="#666666", wrap=True, margin="sm"),
+        TextComponent(text="*โปรดใช้เป็นข้อมูลประกอบการตัดสินใจทางคลินิก", size="xxs", color="#aaaaaa", wrap=True, margin="md")
     ])))
+    
     return FlexSendMessage(alt_text="ผลตรวจสอบยาตีกัน", contents=CarouselContainer(contents=bubbles))
 
 def get_dose_adjustment_range(inr, current_dose):
@@ -484,15 +476,6 @@ def handle_message(event):
     text = event.message.text.strip()
     user_id = event.source.user_id
 
-    # 🌟 ฟีเจอร์อัปเดตข้อมูลยาจาก Google Sheets ทันที
-    if text == "อัปเดตยา":
-        success = load_drug_db()
-        if success:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"✅ อัปเดตฐานข้อมูลยาจาก Google Sheets สำเร็จ!\nระบบค้นพบยาทั้งหมด: {len(INTERACTION_DB)} รายการ"))
-        else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="⚠️ ไม่สามารถอัปเดตข้อมูลได้ โปรดตรวจสอบว่าตั้งชื่อชีตว่า 'DI database' ถูกต้องและไม่มีการเว้นวรรคส่วนเกินครับ"))
-        return
-
     if text.lower() == "ping":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"🏓 Pong! \nเวลา: {datetime.now().strftime('%H:%M:%S')}"))
         return
@@ -581,7 +564,7 @@ def handle_postback(event):
         msg = (f"📅 **สรุปยอดเบิกยา**\nนัด: {selected_date.strftime('%d/%m/%Y')} ({days_diff} วัน)\nคิดเป็น: {weeks_ceiling} สัปดาห์ (ปัดขึ้น)\n-----------------\n{chr(10).join(result_lines)}")
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
 
-# ⏰ ระบบปลุกเซิร์ฟเวอร์อัตโนมัติ (Keep-alive) ป้องกันเซิร์ฟเวอร์หลับ
+# ⏰ ระบบปลุกเซิร์ฟเวอร์
 def keep_alive():
     url = "https://warfy-bot.onrender.com/"
     while True:
@@ -590,9 +573,8 @@ def keep_alive():
             print("⏰ Ping! ปลุกเซิร์ฟเวอร์สำเร็จ")
         except Exception as e:
             print("⚠️ Ping Failed:", e)
-        time.sleep(300) # ทำงานทุก 5 นาที (300 วินาที)
+        time.sleep(300)
 
 if __name__ == "__main__":
-    # สั่งให้ระบบปลุกทำงานเบื้องหลังทันทีที่เปิดแอป
     threading.Thread(target=keep_alive, daemon=True).start()
     app.run(port=5000)
